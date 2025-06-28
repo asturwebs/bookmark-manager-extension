@@ -1,0 +1,2241 @@
+// Gestor de Marcadores - Versión JavaScript Vanilla
+
+// ===== UTILIDADES DE SEGURIDAD =====
+class SecurityUtils {
+    /**
+     * Valida y sanitiza una URL para prevenir XSS y otros ataques
+     * @param {string} url - URL a validar
+     * @returns {string|null} - URL sanitizada o null si es inválida
+     */
+    static sanitizeUrl(url) {
+        if (!url || typeof url !== 'string') {
+            return null;
+        }
+
+        try {
+            const urlObj = new URL(url);
+            // Solo permitir protocolos seguros
+            const allowedProtocols = ['http:', 'https:', 'chrome:', 'chrome-extension:'];
+            
+            if (!allowedProtocols.includes(urlObj.protocol)) {
+                console.warn('Protocolo no permitido:', urlObj.protocol);
+                return null;
+            }
+
+            // Verificar que no contenga caracteres maliciosos
+            const maliciousPatterns = [
+                /javascript:/i,
+                /data:/i,
+                /vbscript:/i,
+                /<script/i,
+                /on\w+=/i
+            ];
+
+            for (const pattern of maliciousPatterns) {
+                if (pattern.test(url)) {
+                    console.warn('URL contiene contenido malicioso:', url);
+                    return null;
+                }
+            }
+
+            return urlObj.href;
+        } catch (error) {
+            console.warn('URL inválida:', url, error);
+            return null;
+        }
+    }
+
+    /**
+     * Sanitiza texto de entrada para prevenir XSS
+     * @param {string} text - Texto a sanitizar
+     * @returns {string} - Texto sanitizado
+     */
+    static sanitizeText(text) {
+        if (!text || typeof text !== 'string') {
+            return '';
+        }
+
+        return text
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#x27;')
+            .replace(/\//g, '&#x2F;');
+    }
+
+    /**
+     * Genera una URL segura para favicon
+     * @param {string} url - URL del bookmark
+     * @returns {string} - URL del favicon o placeholder
+     */
+    static getFaviconUrl(url) {
+        const sanitizedUrl = this.sanitizeUrl(url);
+        if (!sanitizedUrl) {
+            return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjE2IiBoZWlnaHQ9IjE2IiBmaWxsPSIjY2NjIi8+CjwvZXZnPg==';
+        }
+
+        try {
+            const urlObj = new URL(sanitizedUrl);
+            return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(urlObj.hostname)}&sz=16`;
+        } catch (error) {
+            console.warn('Error generando favicon URL:', error);
+            return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjE2IiBoZWlnaHQ9IjE2IiBmaWxsPSIjY2NjIi8+CjwvZXZnPg==';
+        }
+    }
+}
+
+// ===== UTILIDADES DE PERFORMANCE =====
+class PerformanceUtils {
+    /**
+     * Implementa debouncing para funciones
+     * @param {Function} func - Función a debouncar
+     * @param {number} wait - Tiempo de espera en ms
+     * @param {boolean} immediate - Ejecutar inmediatamente la primera vez
+     * @returns {Function} - Función debouncada
+     */
+    static debounce(func, wait, immediate = false) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                timeout = null;
+                if (!immediate) func.apply(this, args);
+            };
+            const callNow = immediate && !timeout;
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+            if (callNow) func.apply(this, args);
+        };
+    }
+
+    /**
+     * Implementa throttling para funciones
+     * @param {Function} func - Función a throttle
+     * @param {number} limit - Límite de tiempo en ms
+     * @returns {Function} - Función throttleada
+     */
+    static throttle(func, limit) {
+        let lastFunc;
+        let lastRan;
+        return function(...args) {
+            if (!lastRan) {
+                func.apply(this, args);
+                lastRan = Date.now();
+            } else {
+                clearTimeout(lastFunc);
+                lastFunc = setTimeout(() => {
+                    if ((Date.now() - lastRan) >= limit) {
+                        func.apply(this, args);
+                        lastRan = Date.now();
+                    }
+                }, limit - (Date.now() - lastRan));
+            }
+        };
+    }
+
+    /**
+     * Cache simple con TTL
+     */
+    static createCache(ttl = 300000) { // 5 minutos por defecto
+        const cache = new Map();
+        const timers = new Map();
+
+        return {
+            get(key) {
+                return cache.get(key);
+            },
+            set(key, value) {
+                // Limpiar timer anterior si existe
+                if (timers.has(key)) {
+                    clearTimeout(timers.get(key));
+                }
+                
+                cache.set(key, value);
+                
+                // Programar limpieza
+                const timer = setTimeout(() => {
+                    cache.delete(key);
+                    timers.delete(key);
+                }, ttl);
+                
+                timers.set(key, timer);
+            },
+            has(key) {
+                return cache.has(key);
+            },
+            clear() {
+                timers.forEach(timer => clearTimeout(timer));
+                cache.clear();
+                timers.clear();
+            }
+        };
+    }
+
+    /**
+     * Observador de performance para medición de métricas
+     */
+    static measurePerformance(name, fn) {
+        const start = performance.now();
+        const result = fn();
+        const end = performance.now();
+        console.log(`Performance [${name}]: ${(end - start).toFixed(2)}ms`);
+        return result;
+    }
+}
+
+const BACKGROUND_OPTIONS = [
+  { name: 'Gradiente Azul', value: 'linear-gradient(135deg, #546190 0%, #483874 100%)' },
+  { name: 'Gradiente Verde', value: 'linear-gradient(135deg, #3a7d3e 0%, #2c5c3f 100%)' },
+  { name: 'Gradiente Rojo', value: 'linear-gradient(135deg, #a93c35 0%, #7a2b28 100%)' },
+  { name: 'Gradiente Naranja', value: 'linear-gradient(135deg, #c37235 0%, #8e4f28 100%)' },
+  { name: 'Gradiente Morado', value: 'linear-gradient(135deg, #6a296e 0%, #4b1e55 100%)' },
+  { name: 'Gradiente Rosa', value: 'linear-gradient(135deg, #a06599 0%, #7c4167 100%)' },
+  { name: 'Gradiente Cian', value: 'linear-gradient(135deg, #2c7b93 0%, #1a5268 100%)' },
+  { name: 'Gradiente Lavanda', value: 'linear-gradient(135deg, #7a6b99 0%, #5d4d73 100%)' },
+  { name: 'Gradiente Menta', value: 'linear-gradient(135deg, #559988 0%, #3a6b6b 100%)' },
+  { name: 'Personalizado...', value: 'custom' }
+];
+
+class BookmarkManager {
+    constructor() {
+        this.windows = [];
+        this.backgroundImage = 'linear-gradient(135deg, #546190 0%, #483874 100%)';
+        this.theme = 'light';
+        this.bookmarks = [];
+        
+        // Configuración para motores de búsqueda
+        this.searchEngines = [
+            { name: 'Google', url: 'https://www.google.com/search?q=' },
+            { name: 'Brave', url: 'https://search.brave.com/search?q=' },
+            { name: 'DuckDuckGo', url: 'https://duckduckgo.com/?q=' },
+            { name: 'Ecosia', url: 'https://www.ecosia.org/search?q=' }
+        ];
+        this.translationEngines = [
+            { name: 'Google Translate', url: 'https://translate.google.com/?sl=auto&tl=es&text=' },
+            { name: 'DeepL', url: 'https://www.deepl.com/translator#en/es/' }, 
+            { name: 'Reverso Context', url: 'https://context.reverso.net/traduccion/ingles-espanol/' } 
+        ];
+        this.defaultSearchEngine = 'Google';
+        this.defaultTranslationEngine = 'Google Translate';
+        
+        // Flags para control de inicialización
+        this.initialized = false; // Controla si los event listeners ya se han configurado
+        this.isInitializing = false; // Previene llamadas reentrantes a init
+        
+        // Performance optimizations
+        this.cache = PerformanceUtils.createCache(300000); // 5 minutos
+        this.debouncedSaveConfig = PerformanceUtils.debounce(() => this._saveConfigImmediate(), 1000);
+        this.debouncedRender = PerformanceUtils.debounce(() => this._renderImmediate(), 300);
+        this.throttledSearch = PerformanceUtils.throttle((searchTerm, windowId) => this._handleSearch(searchTerm, windowId), 200);
+        
+        // Memory management
+        this.eventListeners = new Map(); // Trackear event listeners para cleanup
+        this.abortController = new AbortController(); // Para cancelar listeners globales
+        
+        this.init();
+    }
+
+    async init() {
+        if (this.isInitializing) {
+            console.warn('Init llamado mientras ya se está inicializando. Abortando.');
+            return;
+        }
+        
+        this.isInitializing = true;
+        
+        // Cleanup de recursos existentes antes de reinicializar
+        if (this.initialized) {
+            this.cleanup();
+        }
+        
+        console.log('======== INICIANDO/REINICIANDO APLICACIÓN ========');
+        let config = {};
+        try {
+            console.log('Intentando cargar desde localStorage...');
+            const localConfig = localStorage.getItem('bookmarkManager_fullConfig');
+            if (localConfig) {
+                config = JSON.parse(localConfig);
+                console.log('Configuración encontrada en localStorage:', config);
+            } else {
+                console.warn('No se encontró configuración en localStorage.');
+            }
+        } catch (e) {
+            console.error('Error al cargar desde localStorage:', e);
+        }
+
+        // Si no hay configuración en localStorage, intentar desde chrome.storage.sync
+        if (Object.keys(config).length === 0 && typeof chrome !== 'undefined' && chrome.storage) {
+            console.log('Intentando cargar desde chrome.storage.sync...');
+            try {
+                const items = await new Promise(resolve => chrome.storage.sync.get(null, resolve));
+                if (items && items.bookmarkManager_fullConfig) {
+                    config = JSON.parse(items.bookmarkManager_fullConfig);
+                    console.log('Configuración encontrada en chrome.storage.sync:', config);
+                } else {
+                    console.warn('No se encontró configuración en chrome.storage.sync.');
+                }
+            } catch (e) {
+                console.error('Error al cargar desde chrome.storage.sync:', e);
+            }
+        }
+
+        if (config.windows && config.windows.length > 0) {
+            this.windows = config.windows;
+            console.log('Cargando ventanas desde localStorage:', this.windows.length);
+            // Asegurarse de que la ventana de búsqueda exista
+            const hasSearchWindow = this.windows.some(w => w.type === 'search');
+            if (!hasSearchWindow) {
+                this.windows.push({
+                    id: Date.now() + 999,
+                    type: 'search',
+                    folder: 'Búsqueda Web',
+                    position: { x: 20, y: 80 },
+                    size: { width: 350, height: 200 },
+                    minimized: false,
+                    colorClass: 'window-color-1'
+                });
+                console.warn('Ventana de búsqueda no encontrada, añadiéndola.');
+            } else {
+                console.log('Ventana de búsqueda ya existe.');
+            }
+            // Asegurarse de que la ventana de traducción exista
+            const hasTranslationWindow = this.windows.some(w => w.type === 'translation');
+            if (!hasTranslationWindow) {
+                this.windows.push({
+                    id: Date.now() + 998,
+                    type: 'translation',
+                    folder: 'Traductor',
+                    position: { x: 400, y: 80 },
+                    size: { width: 400, height: 250 },
+                    minimized: false,
+                    colorClass: 'window-color-2'
+                });
+                console.warn('Ventana de traducción no encontrada, añadiéndola.');
+            } else {
+                console.log('Ventana de traducción ya existe.');
+            }
+        } else {
+            // Configuración inicial si no hay ventanas guardadas
+            const defaultWindows = [
+                {
+                    id: Date.now(),
+                    type: 'bookmark',
+                    folder: 'Favoritos',
+                    position: { x: 50, y: 50 },
+                    size: { width: 300, height: 400 },
+                    minimized: false,
+                    colorClass: 'window-color-1'
+                },
+                {
+                    id: Date.now() + 1,
+                    type: 'search',
+                    folder: 'Búsqueda Web',
+                    position: { x: 400, y: 50 },
+                    size: { width: 350, height: 200 },
+                    minimized: false,
+                    colorClass: 'window-color-3'
+                },
+                {
+                    id: Date.now() + 2,
+                    type: 'translation',
+                    folder: 'Traductor',
+                    position: { x: 50, y: 500 },
+                    size: { width: 400, height: 250 },
+                    minimized: false,
+                    colorClass: 'window-color-2'
+                }
+            ];
+            this.windows = defaultWindows;
+            console.log('No se encontraron ventanas guardadas, creando configuración inicial.');
+        }
+
+        console.log('Estado de this.windows después de cargar localStorage:', this.windows);
+
+        this.backgroundImage = config.backgroundImage || this.backgroundImage;
+        this.theme = config.theme || this.theme;
+        this.defaultSearchEngine = config.defaultSearchEngine || this.defaultSearchEngine;
+        this.defaultTranslationEngine = config.defaultTranslationEngine || this.defaultTranslationEngine;
+
+        await this.loadBookmarks();
+        
+        this.render();
+        this.setTheme(this.theme);
+        this.setBackground(this.backgroundImage);
+        this.setupEventListeners();
+        
+        this.isInitializing = false;
+        console.log('======== APLICACIÓN INICIADA/REINICIADA ========');
+        
+        // Exponer método de debugging globalmente
+        window.bookmarkManagerApp = this;
+        window.bookmarkManagerApp.getDebugInfo = () => {
+            return {
+                performance: this.getMemoryInfo(),
+                cache: this.cache,
+                initialized: this.initialized,
+                windows: this.windows.length,
+                bookmarks: this.bookmarks.length
+            };
+        };
+    }
+
+    getStorageData(keys) {
+        return new Promise((resolve) => {
+            if (typeof chrome !== 'undefined' && chrome.storage) {
+                chrome.storage.sync.get(keys, resolve);
+            } else {
+                // Fallback para desarrollo
+                const result = {};
+                keys.forEach(key => {
+                    const value = localStorage.getItem(key);
+                    if (value) result[key] = JSON.parse(value);
+                });
+                resolve(result);
+            }
+        });
+    }
+
+    setStorageData(data) {
+        if (typeof chrome !== 'undefined' && chrome.storage) {
+            chrome.storage.sync.set(data);
+        } else {
+            // Fallback para desarrollo
+            Object.keys(data).forEach(key => {
+                localStorage.setItem(key, JSON.stringify(data[key]));
+            });
+        }
+    }
+
+    async loadBookmarks() {
+        console.log('Cargando marcadores...');
+        try {
+            let bookmarks = [];
+            
+            if (typeof chrome !== 'undefined' && chrome.bookmarks) {
+                const tree = await new Promise(resolve => 
+                    chrome.bookmarks.getTree(resolve)
+                );
+                bookmarks = this.flattenBookmarks(tree);
+                console.log('Marcadores cargados desde chrome.bookmarks:', bookmarks.length);
+            } else {
+                // Datos de ejemplo para desarrollo
+                bookmarks = [
+                    { id: '1', title: 'Google', url: 'https://www.google.com', folder: 'Favoritos' },
+                    { id: '2', title: 'YouTube', url: 'https://www.youtube.com', folder: 'Favoritos' },
+                    { id: '3', title: 'GitHub', url: 'https://github.com', folder: 'Desarrollo' },
+                    { id: '4', title: 'Stack Overflow', url: 'https://stackoverflow.com', folder: 'Desarrollo' },
+                    { id: '5', title: 'MDN Web Docs', url: 'https://developer.mozilla.org', folder: 'Desarrollo' },
+                    { id: '6', title: 'Wikipedia', url: 'https://www.wikipedia.org', folder: 'Referencia' },
+                    { id: '7', title: 'Amazon', url: 'https://www.amazon.com', folder: 'Compras' },
+                    { id: '8', title: 'Netflix', url: 'https://www.netflix.com', folder: 'Entretenimiento' },
+                    { id: '9', title: 'Facebook', url: 'https://www.facebook.com', folder: 'Social' },
+                    { id: '10', title: 'Twitter', url: 'https://www.twitter.com', folder: 'Social' }
+                ];
+                console.log('Marcadores cargados desde datos de ejemplo:', bookmarks.length);
+            }
+            this.bookmarks = bookmarks;
+
+            // Obtener todas las carpetas únicas de los marcadores
+            const folders = [...new Set(bookmarks.map(b => b.folder))];
+            console.log('Carpetas de marcadores encontradas:', folders);
+            
+            // Verificar si tenemos que crear ventanas para las carpetas de marcadores
+            const bookmarkWindows = this.windows.filter(w => w.type === 'bookmark' || w.type === 'bookmarks');
+            if (bookmarkWindows.length === 0) {
+                console.log('No hay ventanas de marcadores, creando ventanas para cada carpeta.');
+                
+                // Posiciones iniciales para las ventanas
+                let posX = 50;
+                let posY = 300;
+                
+                // Crear una ventana para cada carpeta
+                folders.forEach((folder, index) => {
+                    if (folder) { // Asegurarse de que la carpeta tenga un nombre válido
+                        const folderBookmarks = bookmarks.filter(b => b.folder === folder);
+                        if (folderBookmarks.length > 0) {
+                            // Alternar posiciones para evitar superposición
+                            if (index % 2 === 0) {
+                                posX = 50;
+                                posY += (index > 0) ? 100 : 0;
+                            } else {
+                                posX = 450;
+                            }
+                            
+                            this.windows.push({
+                                id: Date.now() + index + 100,
+                                type: 'bookmark',
+                                folder: folder,
+                                position: { x: posX, y: posY },
+                                size: { width: 350, height: 400 },
+                                minimized: false,
+                                bookmarks: folderBookmarks,
+                                colorClass: `window-color-${(index % 5) + 1}` // Alternar colores
+                            });
+                            console.log(`Ventana para carpeta "${folder}" creada con ${folderBookmarks.length} marcadores`);
+                        }
+                    }
+                });
+            } else {
+                // Si ya existen ventanas de marcadores, asegurarse de que tengan sus bookmarks asignados
+                bookmarkWindows.forEach(window => {
+                    if (window.folder) {
+                        window.bookmarks = bookmarks.filter(b => b.folder === window.folder);
+                        console.log(`Actualizados ${window.bookmarks.length} marcadores para ventana "${window.folder}"`);
+                    }
+                });
+            }
+
+            // Si la ventana de búsqueda no existe, añadirla aquí también como fallback
+            const hasSearchWindow = this.windows.some(w => w.type === 'search');
+            if (!hasSearchWindow) {
+                console.log('Agregando ventana de búsqueda faltante en loadBookmarks como fallback');
+                this.windows.unshift({
+                    id: Date.now() + 999,
+                    type: 'search',
+                    folder: 'Búsqueda Web',
+                    position: { x: 20, y: 80 },
+                    size: { width: 350, height: 200 },
+                    minimized: false,
+                    colorClass: 'window-color-1'
+                });
+            }
+
+            // Guardar configuración con las nuevas ventanas
+            this.saveConfig();
+            console.log('Configuración guardada después de cargar marcadores');
+        } catch (error) {
+            console.error('Error cargando marcadores:', error);
+        }
+    }
+
+    async updateBookmarkContent() {
+        console.log('Actualizando contenido de marcadores en ventanas existentes...');
+        try {
+            if (typeof chrome !== 'undefined' && chrome.bookmarks) {
+                const tree = await new Promise(resolve => 
+                    chrome.bookmarks.getTree(resolve)
+                );
+                const bookmarks = this.flattenBookmarks(tree);
+                
+                // Actualizar el contenido de los marcadores en cada ventana
+                this.windows.forEach(window => {
+                    if (window.folder) {
+                        // Filtrar los marcadores que pertenecen a esta carpeta
+                        window.bookmarks = bookmarks.filter(b => 
+                            (b.folder || 'Sin carpeta') === window.folder
+                        );
+                    }
+                });
+                console.log('Contenido de marcadores actualizado.');
+            }
+        } catch (error) {
+            console.error('Error actualizando el contenido de los marcadores:', error);
+        }
+    }
+
+    flattenBookmarks(bookmarkNodes) {
+        let result = [];
+        
+        // Guardar la estructura de carpetas completa para mantener la jerarquía
+        const folderPaths = {}; // Mapa de ID de carpeta a su ruta completa
+        
+        // Primero, construir un mapa de rutas de carpetas
+        const buildFolderPaths = (nodes, parentPath = '') => {
+            nodes.forEach(node => {
+                if (node.children) {
+                    // Es una carpeta
+                    // Eliminar la palabra 'Marcadores' al inicio de las rutas
+                    let nodeTitle = node.title;
+                    if (nodeTitle === 'Marcadores' && parentPath === '') {
+                        // Si es la carpeta raíz de marcadores, no la incluimos en la ruta
+                        buildFolderPaths(node.children, ''); // Mantener parentPath vacío
+                        return; // Saltar al siguiente nodo
+                    }
+                    
+                    const currentPath = parentPath ? `${parentPath} / ${nodeTitle}` : nodeTitle;
+                    folderPaths[node.id] = {
+                        path: currentPath,   // Ruta completa incluyendo jerarquía
+                        title: nodeTitle,  // Sólo el nombre de esta carpeta
+                        parentPath: parentPath // Ruta del padre sin esta carpeta
+                    };
+                    buildFolderPaths(node.children, currentPath);
+                }
+            });
+        };
+        
+        buildFolderPaths(bookmarkNodes);
+        console.log('Estructura de carpetas construida:', folderPaths);
+        
+        // Luego, recorrer y aplanar los marcadores
+        const traverse = (nodes, folder = '', folderId = '') => {
+            nodes.forEach(node => {
+                if (node.children) {
+                    traverse(node.children, node.title, node.id);
+                } else if (node.url) {
+                    result.push({
+                        id: node.id,
+                        title: node.title,
+                        url: node.url,
+                        folder: folder,
+                        folderId: folderId,
+                        folderPath: folderPaths[folderId]?.path || folder // Ruta completa de la carpeta
+                    });
+                }
+            });
+        };
+        
+        traverse(bookmarkNodes);
+        return result;
+    }
+
+    // Método público que usa debouncing para render
+    render() {
+        this.debouncedRender();
+    }
+
+    // Método optimizado para filtrar bookmarks con cache
+    getFilteredBookmarks(bookmarks, searchTerm) {
+        if (!searchTerm) {
+            return bookmarks;
+        }
+
+        const cacheKey = `filtered_${JSON.stringify(bookmarks.map(b => b.id))}_${searchTerm}`;
+        
+        if (this.cache.has(cacheKey)) {
+            return this.cache.get(cacheKey);
+        }
+
+        const filtered = bookmarks.filter(bookmark => 
+            bookmark.title.toLowerCase().includes(searchTerm) ||
+            bookmark.url.toLowerCase().includes(searchTerm)
+        );
+
+        this.cache.set(cacheKey, filtered);
+        return filtered;
+    }
+
+    // Método privado para manejar búsquedas con throttling
+    _handleSearch(searchTerm, windowId) {
+        const currentWindow = this.windows.find(w => w.id === windowId);
+        if (!currentWindow) return;
+
+        const filtered = this.getFilteredBookmarks(currentWindow.bookmarks, searchTerm);
+        
+        const container = document.querySelector(`#window-content-${windowId} .bookmarks-container`) ||
+                         document.querySelector(`[data-window-id="${windowId}"] .bookmarks-container`);
+        
+        if (container) {
+            container.innerHTML = this.renderBookmarksList(filtered);
+        }
+    }
+
+    // Optimización DOM: Crear elementos de forma eficiente
+    createElement(tag, className, innerHTML, attributes = {}) {
+        const element = document.createElement(tag);
+        if (className) element.className = className;
+        if (innerHTML) element.innerHTML = innerHTML;
+        
+        Object.entries(attributes).forEach(([key, value]) => {
+            element.setAttribute(key, value);
+        });
+        
+        return element;
+    }
+
+    // Optimización DOM: Batch de cambios DOM
+    batchDOMChanges(callback) {
+        // Usar requestAnimationFrame para batching
+        requestAnimationFrame(() => {
+            const start = performance.now();
+            callback();
+            const end = performance.now();
+            if (end - start > 16) { // > 16ms indica potencial problema de performance
+                console.warn(`DOM change took ${(end - start).toFixed(2)}ms`);
+            }
+        });
+    }
+
+    // ===== GESTIÓN DE MEMORIA Y CLEANUP =====
+    addEventListenerWithCleanup(element, event, handler, options = {}) {
+        const listenerData = { element, event, handler, options };
+        const key = `${element.id || 'element'}_${event}_${Date.now()}`;
+        
+        // Agregar signal para cleanup automático
+        const finalOptions = { ...options, signal: this.abortController.signal };
+        
+        element.addEventListener(event, handler, finalOptions);
+        this.eventListeners.set(key, listenerData);
+        
+        return key; // Retornar key para cleanup manual si es necesario
+    }
+
+    cleanupEventListener(key) {
+        const listenerData = this.eventListeners.get(key);
+        if (listenerData) {
+            const { element, event, handler, options } = listenerData;
+            element.removeEventListener(event, handler, options);
+            this.eventListeners.delete(key);
+        }
+    }
+
+    cleanupAllEventListeners() {
+        // Abortar todos los listeners con AbortController
+        this.abortController.abort();
+        
+        // Crear nuevo controller para futuros listeners
+        this.abortController = new AbortController();
+        
+        // Limpiar el mapa
+        this.eventListeners.clear();
+        
+        // Limpiar cache
+        this.cache.clear();
+        
+        console.log('Event listeners y cache limpiados');
+    }
+
+    // Método para limpiar recursos antes de reinicializar
+    cleanup() {
+        this.cleanupAllEventListeners();
+        this.initialized = false;
+    }
+
+    // Método para detectar memory leaks
+    getMemoryInfo() {
+        return {
+            eventListenersCount: this.eventListeners.size,
+            cacheSize: this.cache.has('debug') ? 'Cache activo' : 'Cache vacío',
+            windowsCount: this.windows.length,
+            bookmarksCount: this.bookmarks.length
+        };
+    }
+
+    // Método privado que ejecuta el renderizado inmediato
+    _renderImmediate() {
+        console.log('render() llamado.');
+        if (!document.getElementById('root')) {
+            console.error('Elemento root no encontrado');
+            return;
+        }
+        
+        document.getElementById('root').innerHTML = `
+            <div class="app ${this.theme}">
+                <div id="background-container" class="background-container" style="background: ${this.backgroundImage}">
+                    <!-- Título de la aplicación -->
+                    <div class="app-title">
+                        <h1>Página de Marcadores by AsturWebs</h1>
+                    </div>
+                    
+                    <!-- Botones de control -->
+                    <div class="header-controls">
+                        <button id="config-button" class="header-button control-btn">⚙️</button>
+                        <button id="theme-toggle-btn" class="header-button control-btn">${this.theme === 'dark' ? '☀️' : '🌙'}</button>
+                        <button id="add-window-button" class="header-button control-btn">+</button>
+                    </div>
+                    
+                    <div id="windows-container" class="windows-container"></div>
+                </div>
+                
+                <!-- Pie de página con firma -->
+                <div id="app-footer" style="position: static; width: 100%; padding: 15px; background: ${this.theme === 'dark' ? 'rgba(0, 0, 0, 0.8)' : 'rgba(255, 255, 255, 0.9)'}; color: ${this.theme === 'dark' ? 'white' : '#333'}; text-align: center; margin: 0; border-top: 1px solid ${this.theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}; bottom: 0; left: 0; right: 0; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);">
+
+                    <div style="max-width: 1200px; margin: 0 auto;">
+                        <p style="font-size: 16px; font-weight: 600; margin: 0 0 5px 0; color: ${this.theme === 'dark' ? 'white' : '#333'};">Pedro Luis Cuevas Villarrubia</p>
+                        <p style="font-size: 12px; margin: 0 0 5px 0; color: ${this.theme === 'dark' ? 'white' : '#555'};">Innovation Practitioner, WebMaster, SysAdmin & SEO since 1999 and AI Agent Architect & Advanced Prompt Engineer since 2020</p>
+                        <p style="font-size: 12px; margin: 0; color: ${this.theme === 'dark' ? 'white' : '#555'};">
+                            <a href="https://asturwebs.es" target="_blank" style="color: #4CAF50; text-decoration: none; font-weight: bold;">asturwebs.es</a> | 
+                            <a href="mailto:pedro@asturwebs.es" style="color: #4CAF50; text-decoration: none; font-weight: bold;">pedro@asturwebs.es</a> | 
+                            <a href="tel:+34644282626" style="color: #4CAF50; text-decoration: none; font-weight: bold;">+34 644 28 26 26</a>
+                        </p>
+                    </div>
+                </div>
+                
+                ${document.getElementById('settings-panel') ? '' : this.renderSettingsPanel()}
+            </div>
+        `;
+
+        // Aplicar el tema actual también al body para ayudar con los selectores CSS
+        document.body.dataset.theme = this.theme;
+        
+        this.renderWindows();
+        
+        // Aplicar estilos adaptados al tema seleccionado
+        setTimeout(() => {
+            // Determinar si es tema oscuro o claro
+            const isDarkMode = this.theme === 'dark';
+            
+            // Estilizar ventanas según el tema
+            const allWindows = document.querySelectorAll('.draggable-window');
+            allWindows.forEach(window => {
+                // Aplicar fondo translúcido según el tema - más transparente en modo oscuro
+                window.style.backgroundColor = isDarkMode ? 'rgba(20, 20, 20, 0.75)' : 'rgba(255, 255, 255, 0.95)';
+                window.style.backdropFilter = 'blur(10px)';
+                window.style.WebkitBackdropFilter = 'blur(10px)';
+                window.style.boxShadow = isDarkMode ? 
+                    '0 8px 32px rgba(0, 0, 0, 0.4)' : 
+                    '0 8px 32px rgba(0, 0, 0, 0.1)';
+                
+                // Contenido de ventanas
+                const content = window.querySelector('.window-content');
+                if (content) {
+                    content.style.backgroundColor = 'transparent';
+                    content.style.color = isDarkMode ? '#f5f5f5' : '#333';
+                }
+                
+                // Estilizar enlaces según el tema
+                const links = window.querySelectorAll('a, .bookmark-link');
+                links.forEach(link => {
+                    link.style.color = isDarkMode ? '#81C784' : '#4CAF50';
+                    link.style.textDecoration = 'none';
+                    link.style.fontWeight = 'bold';
+                    link.style.textShadow = isDarkMode ? '0 1px 1px rgba(0, 0, 0, 0.5)' : 'none';
+                    
+                    // Hover effect
+                    link.addEventListener('mouseenter', () => {
+                        link.style.textDecoration = 'underline';
+                        link.style.color = isDarkMode ? '#A5D6A7' : '#2E7D32';
+                    });
+                    
+                    link.addEventListener('mouseleave', () => {
+                        link.style.textDecoration = 'none';
+                        link.style.color = isDarkMode ? '#81C784' : '#4CAF50';
+                    });
+                });
+            });
+            
+            // Corregir altura del contenedor de fondo
+            const backgroundContainer = document.getElementById('background-container');
+            if (backgroundContainer) {
+                backgroundContainer.style.minHeight = '100vh';
+            }
+            
+        }, 100); // Pequeño retraso para asegurar que el DOM esté listo
+        // Ya no necesitamos setupEventListeners() para los botones principales
+        // ya que ahora se manejan en extension-controls.js
+        this.setupEventListeners();
+    }
+
+    renderSettingsPanel() {
+        return `
+            <div id="settings-panel" class="settings-panel hidden">
+                <div class="settings-content">
+                    <h3>Configuración</h3>
+                    <div class="setting-group">
+                        <label>Tema:</label>
+                        <select id="theme-select">
+                            <option value="light" ${this.theme === 'light' ? 'selected' : ''}>Claro</option>
+                            <option value="dark" ${this.theme === 'dark' ? 'selected' : ''}>Oscuro</option>
+                        </select>
+                    </div>
+                    <div class="setting-group">
+                        <label>Fondo:</label>
+                        <select id="background-select">
+                            ${BACKGROUND_OPTIONS.map(bg => 
+                                `<option value="${bg.value}" ${this.backgroundImage === bg.value ? 'selected' : ''}>
+                                    ${bg.name}
+                                </option>`
+                            ).join('')}
+                        </select>
+                    </div>
+                    <div id="custom-bg-upload" class="setting-group" 
+                         style="display: ${this.backgroundImage.startsWith('url(') ? 'block' : 'none'};">
+                        <label>Imagen personalizada:</label>
+                        <input type="file" id="bg-file-input" accept="image/*">
+                        ${this.backgroundImage.startsWith('url(') ? 
+                            '<button id="remove-bg-btn" class="unified-button-style">Eliminar imagen</button>' : ''}
+                    </div>
+                    <div class="setting-group action-buttons">
+                        <button id="reset-settings-btn" class="unified-button-style reset-btn">Restablecer configuración</button>
+                    </div>
+                    <button id="close-settings-btn">✕</button>
+                </div>
+            </div>
+        `;
+    }
+
+    renderWindows() {
+        const container = document.getElementById('windows-container');
+        if (!container) return;
+        
+        container.innerHTML = '';
+        
+        console.log('Renderizando ventanas. Estado actual de this.windows:', this.windows);
+        
+        this.windows.forEach(window => {
+            if (!window.minimized) {
+                const windowElement = this.createWindowElement(window);
+                container.appendChild(windowElement);
+                console.log(`Ventana renderizada: ${window.folder} (${window.type}), ID: ${window.id}, Tamaño: ${window.size.width}x${window.size.height}`);
+            }
+        });
+    }
+
+    createWindowElement(windowData) {
+        console.log('Creando elemento de ventana para:', windowData);
+        const div = document.createElement('div');
+        div.className = `draggable-window ${windowData.colorClass || ''}`;
+        div.style.left = windowData.position.x + 'px';
+        div.style.top = windowData.position.y + 'px';
+        div.style.width = windowData.size.width + 'px';
+        // No asignamos altura fija para permitir que se adapte al contenido
+        // Solo mantenemos un mínimo para ventanas vacías o con poco contenido
+        div.style.minHeight = '150px';
+        div.dataset.id = windowData.id;
+        
+        // Estado de la ventana (expandida o contraída)
+        div.dataset.collapsed = 'false';
+        
+        // Contenido diferente según el tipo de ventana
+        if (windowData.type === 'search') {
+            div.innerHTML = `
+                <div class="window-header">
+                    <span class="window-title">${windowData.folder}</span>
+                    <div class="window-controls">
+                        <button class="control-btn minimize-btn" data-id="${windowData.id}">─</button>
+                        <button class="control-btn close-btn" data-id="${windowData.id}">✕</button>
+                    </div>
+                </div>
+                <div class="window-content">
+                    <div class="search-container">
+                        <input type="text" id="web-search-input-${windowData.id}" class="unified-input-style" placeholder="Buscar en la web...">
+                        <button id="web-search-button-${windowData.id}" class="unified-button-style">Buscar</button>
+                    </div>
+                    <div class="search-engine-options">
+                        ${this.searchEngines.map(engine => `
+                            <label>
+                                <input type="radio" name="search-engine-${windowData.id}" value="${engine.name}"
+                                    ${this.defaultSearchEngine === engine.name ? 'checked' : ''}>
+                                ${engine.name}
+                            </label>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            // Añadir event listeners después de que el elemento esté en el DOM
+            setTimeout(() => {
+                const searchButton = div.querySelector(`#web-search-button-${windowData.id}`);
+                if (searchButton) {
+                    searchButton.addEventListener('click', () => {
+                        this.handleWebSearch(windowData.id);
+                    });
+                }
+                const searchInput = div.querySelector(`#web-search-input-${windowData.id}`);
+                if (searchInput) {
+                    searchInput.addEventListener('keypress', (e) => {
+                        if (e.key === 'Enter') {
+                            this.handleWebSearch(windowData.id);
+                        }
+                    });
+                }
+                
+                // Configurar los radios de motores de búsqueda
+                const radioButtons = div.querySelectorAll(`input[name="search-engine-${windowData.id}"]`);
+                radioButtons.forEach(radio => {
+                    radio.addEventListener('change', (e) => {
+                        if (e.target.checked) {
+                            this.defaultSearchEngine = e.target.value;
+                            this.saveConfig();
+                        }
+                    });
+                });
+            }, 0);
+        } else if (windowData.type === 'translation') {
+            div.innerHTML = `
+                <div class="window-header">
+                    <span class="window-title">${windowData.folder}</span>
+                    <div class="window-controls">
+                        <button class="control-btn minimize-btn" data-id="${windowData.id}">─</button>
+                        <button class="control-btn close-btn" data-id="${windowData.id}">✕</button>
+                    </div>
+                </div>
+                <div class="window-content">
+                    <textarea id="translation-input-${windowData.id}" class="unified-input-style" placeholder="Introduce texto para traducir..." rows="5"></textarea>
+                    <div class="translation-engine-options">
+                        ${this.translationEngines.map(engine => `
+                            <label>
+                                <input type="radio" name="translation-engine-${windowData.id}" value="${engine.name}"
+                                    ${this.defaultTranslationEngine === engine.name ? 'checked' : ''}>
+                                ${engine.name}
+                            </label>
+                        `).join('')}
+                    </div>
+                    <button id="translate-button-${windowData.id}" class="unified-button-style">Traducir</button>
+                </div>
+            `;
+            setTimeout(() => {
+                const translateButton = div.querySelector(`#translate-button-${windowData.id}`);
+                if (translateButton) {
+                    translateButton.addEventListener('click', () => {
+                        this.handleTranslation(windowData.id);
+                    });
+                }
+                const translationInput = div.querySelector(`#translation-input-${windowData.id}`);
+                if (translationInput) {
+                    translationInput.addEventListener('keypress', (e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) { // Traducir al presionar Enter, Shift+Enter para nueva línea
+                            e.preventDefault(); // Prevenir nueva línea en el textarea
+                            this.handleTranslation(windowData.id);
+                        }
+                    });
+                }
+                const radioButtons = div.querySelectorAll(`input[name="translation-engine-${windowData.id}"]`);
+                radioButtons.forEach(radio => {
+                    radio.addEventListener('change', (e) => {
+                        if (e.target.checked) {
+                            this.defaultTranslationEngine = e.target.value;
+                            this.saveConfig();
+                        }
+                    });
+                });
+            }, 0);
+        } else {
+            // Contenido para ventanas de marcadores
+            // Mostrar la jerarquía en el título si existe
+            let titleContent = '';
+            
+            // Forzar que siempre intentemos mostrar la jerarquía
+            console.log('Creando título con jerarquía para:', windowData.folder, 'Ruta:', windowData.folderPath);
+            
+            // Si existe una ruta jerárquica, mostrarla con el nombre de la carpeta actual en negrita
+            if (windowData.folderPath && windowData.folderPath !== windowData.folder) {
+                // Obtener la ruta jerárquica completa
+                const pathParts = windowData.folderPath.split(' / ');
+                
+                // El último elemento es el nombre de la carpeta actual
+                const folderName = pathParts[pathParts.length - 1];
+                
+                // Construir la ruta de jerarquía sin el último elemento
+                const parentPath = pathParts.slice(0, -1).join(' / ');
+                
+                if (parentPath) {
+                    // Mostrar la ruta completa con el nombre de la carpeta actual en negrita
+                    titleContent = `<span class="folder-hierarchy">${parentPath} / </span><span class="current-folder">${folderName}</span>`;
+                    console.log('Título con jerarquía:', titleContent);
+                } else {
+                    titleContent = `<span class="current-folder">${windowData.folder}</span>`;
+                }
+            } else {
+                // Sin jerarquía, solo mostrar el nombre de la carpeta en negrita
+                titleContent = `<span class="current-folder">${windowData.folder}</span>`;
+            }
+            
+            div.innerHTML = `
+                <div class="window-header">
+                    <span class="window-title">${titleContent}</span>
+                    <div class="window-controls">
+                        <button class="control-btn minimize-btn" data-id="${windowData.id}">─</button>
+                        <button class="control-btn close-btn" data-id="${windowData.id}">✕</button>
+                    </div>
+                </div>
+                <div class="window-content" id="window-content-${windowData.id}">
+                    <input type="text" class="bookmark-search-input unified-input-style" placeholder="Buscar marcadores...">
+                    <div class="bookmarks-container">
+                        ${this.renderBookmarksList(windowData.bookmarks)}
+                    </div>
+                </div>
+            `;
+            // Añadir event listeners para la búsqueda de marcadores
+            setTimeout(() => {
+                const bookmarkSearchInput = div.querySelector('.bookmark-search-input');
+                if (bookmarkSearchInput) {
+                    bookmarkSearchInput.addEventListener('input', (e) => {
+                        const searchTerm = e.target.value.toLowerCase();
+                        const windowId = windowData.id;
+                        this.throttledSearch(searchTerm, windowId);
+                    });
+                }
+            }, 0);
+        }
+
+        // Añadir manejador para contraer/expandir al hacer clic en la barra de título
+        const header = div.querySelector('.window-header');
+        if (header) {
+            // Agregamos un cursor pointer para indicar que es clickeable
+            header.style.cursor = 'pointer';
+            
+            // Añadimos un indicador visual (flecha) para mostrar el estado
+            const title = header.querySelector('.window-title');
+            if (title) {
+                // Mantenemos el texto original para restaurarlo al expandir
+                div.dataset.originalTitle = title.textContent;
+            }
+            
+            // Manejador de evento de clic en la barra de título
+            header.addEventListener('click', (e) => {
+                // Solo si el clic fue directamente en el header o en el título, no en los botones
+                if (e.target === header || e.target === title) {
+                    this.toggleWindowContent(div);
+                }
+            });
+        }
+        
+        // Añadir controles de arrastre y redimensionamiento
+        this.makeDraggable(div, windowData);
+        this.makeResizable(div, windowData);
+
+        return div;
+    }
+
+    renderBookmarksList(bookmarks, lazyLoad = true) {
+        // Asegurarse de que bookmarks es un array válido
+        if (!bookmarks || !Array.isArray(bookmarks) || bookmarks.length === 0) {
+            return '<div class="no-bookmarks">No hay marcadores en esta carpeta</div>';
+        }
+
+        // Lazy loading: solo renderizar los primeros N bookmarks si hay muchos
+        const LAZY_LOAD_THRESHOLD = 50;
+        const shouldLazyLoad = lazyLoad && bookmarks.length > LAZY_LOAD_THRESHOLD;
+        const bookmarksToRender = shouldLazyLoad ? bookmarks.slice(0, LAZY_LOAD_THRESHOLD) : bookmarks;
+
+        // Usar DocumentFragment para mejor performance
+        const fragment = document.createDocumentFragment();
+        
+        bookmarksToRender.forEach(bookmark => {
+            const bookmarkDiv = this.createElement('div', 'bookmark-item', null, {
+                'data-url': SecurityUtils.sanitizeUrl(bookmark.url) || '#'
+            });
+
+            const favicon = this.createElement('img', 'bookmark-favicon', null, {
+                'src': SecurityUtils.getFaviconUrl(bookmark.url),
+                'loading': 'lazy',
+                'onerror': "this.style.display='none'"
+            });
+
+            const title = this.createElement('span', 'bookmark-title');
+            title.textContent = SecurityUtils.sanitizeText(bookmark.title); // Usar textContent para seguridad
+
+            bookmarkDiv.appendChild(favicon);
+            bookmarkDiv.appendChild(title);
+            fragment.appendChild(bookmarkDiv);
+        });
+
+        // Agregar botón "Cargar más" si hay lazy loading
+        if (shouldLazyLoad) {
+            const loadMoreButton = this.createElement('button', 'load-more-bookmarks', 
+                `Cargar más marcadores (${bookmarks.length - LAZY_LOAD_THRESHOLD} restantes)`, {
+                'data-remaining-bookmarks': JSON.stringify(bookmarks.slice(LAZY_LOAD_THRESHOLD)),
+                'type': 'button'
+            });
+            fragment.appendChild(loadMoreButton);
+        }
+
+        // Crear un contenedor temporal para retornar innerHTML
+        const tempContainer = document.createElement('div');
+        tempContainer.appendChild(fragment);
+        return tempContainer.innerHTML;
+    }
+
+    setupEventListeners() {
+        if (this.initialized) return; // Si ya se inicializó, no hacer nada
+
+        console.log('Configurando event listeners');
+        
+        // Configurar los eventos para los botones de la interfaz
+        const configButton = document.getElementById('config-button');
+        if (configButton) {
+            configButton.addEventListener('click', () => {
+                console.log('Botón de configuración clickeado');
+                this.toggleSettings();
+            });
+        } else {
+            console.error('Botón de configuración no encontrado');
+        }
+        
+        // Configurar el botón de tema directamente (ya está en el HTML)
+        const themeToggleButton = document.getElementById('theme-toggle-btn');
+        if (themeToggleButton) {
+            themeToggleButton.title = this.theme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro';
+            themeToggleButton.addEventListener('click', () => {
+                console.log('Botón de tema clickeado');
+                this.toggleTheme();
+            });
+        } else {
+            console.error('Botón de tema no encontrado');
+        }
+        
+        // Configurar el botón para añadir una nueva ventana
+        const addWindowButton = document.getElementById('add-window-button');
+        if (addWindowButton) {
+            addWindowButton.addEventListener('click', () => {
+                console.log('Botón de añadir ventana clickeado');
+                // Mostrar un diálogo para seleccionar la carpeta
+                const folderName = prompt('Introduce el nombre de la carpeta para la nueva ventana:');
+                if (folderName) {
+                    this.createBookmarkWindow(folderName);
+                }
+            });
+        } else {
+            console.error('Botón de añadir ventana no encontrado');
+        }
+        
+        // Reorganizar ventanas cuando cambie el tamaño de la ventana
+        window.addEventListener('resize', () => {
+            // Usar un debounce para evitar llamadas excesivas durante el redimensionamiento
+            if (this.resizeTimeout) {
+                clearTimeout(this.resizeTimeout);
+            }
+            this.resizeTimeout = setTimeout(() => {
+                console.log('Evento resize detectado, comprobando si se debe reorganizar...');
+                // Pasar false para que solo reorganice si el cambio de tamaño es significativo
+                this.reorganizeWindows(false);
+            }, 500); // Esperar 500ms de inactividad antes de reorganizar
+        });
+        
+        // Primera carga - respetar posiciones guardadas
+        if (typeof window !== 'undefined') {
+            // Pequeño retraso para asegurar que todo está cargado
+            setTimeout(() => {
+                // Detectar si es la primera carga comprobando si las ventanas ya tienen posiciones
+                const firstLoad = !this.windows.some(w => w.position && w.position.x !== undefined);
+                console.log('Inicialización, respetando posiciones guardadas. Primera carga:', firstLoad);
+                
+                // Solo reorganizar automáticamente en la primera carga
+                this.reorganizeWindows(firstLoad);
+            }, 200);
+        }
+
+        // Close settings panel
+        document.getElementById('close-settings-btn')?.addEventListener('click', () => {
+            document.getElementById('settings-panel').classList.add('hidden');
+        });
+
+        // Reset settings button
+        document.getElementById('reset-settings-btn')?.addEventListener('click', () => {
+            if (confirm('¿Estás seguro de que deseas restablecer toda la configuración? Se perderán todos los cambios de diseño y visualización.')) {
+                this.resetConfig();
+            }
+        });
+
+        // Theme toggle se maneja ahora con onclick en el HTML
+
+        // Theme select
+        document.getElementById('theme-select')?.addEventListener('change', (e) => {
+            this.setTheme(e.target.value);
+        });
+
+        // Background select
+        document.getElementById('background-select')?.addEventListener('change', (e) => {
+            const value = e.target.value;
+            const uploadContainer = document.getElementById('custom-bg-upload');
+            
+            if (value === 'custom') {
+                uploadContainer.style.display = 'block';
+            } else {
+                uploadContainer.style.display = 'none';
+                this.setBackground(value);
+            }
+        });
+
+        // Upload custom background
+        document.getElementById('bg-file-input')?.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    this.setBackground(`url(${event.target.result})`);
+                    // Re-render settings panel to show remove button
+                    document.getElementById('settings-panel').outerHTML = this.renderSettingsPanel();
+                    this.setupEventListeners(); // Re-attach listeners to the new settings panel elements
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Remove background image
+        document.getElementById('remove-bg-btn')?.addEventListener('click', () => {
+            this.setBackground(BACKGROUND_OPTIONS[0].value);
+            document.getElementById('settings-panel').outerHTML = this.renderSettingsPanel();
+            this.setupEventListeners(); // Re-attach listeners
+        });
+
+        // Window controls
+        // Los botones de cerrar y minimizar han sido eliminados
+        // Mantenemos este comentario para referencia futura
+
+        // Open bookmark
+        document.addEventListener('click', (e) => {
+            const bookmarkItem = e.target.closest('.bookmark-item');
+            if (bookmarkItem && bookmarkItem.dataset.url) {
+                const url = SecurityUtils.sanitizeUrl(bookmarkItem.dataset.url);
+                if (url && url !== '#') {
+                    if (typeof chrome !== 'undefined' && chrome.tabs) {
+                        chrome.tabs.update({ url });
+                    } else {
+                        window.location.href = url;
+                    }
+                } else {
+                    console.warn('URL no válida o maliciosa bloqueada:', bookmarkItem.dataset.url);
+                }
+            }
+        });
+
+        // Load more bookmarks functionality
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('load-more-bookmarks')) {
+                const button = e.target;
+                const container = button.closest('.bookmarks-container');
+                
+                if (container) {
+                    try {
+                        const remainingBookmarks = JSON.parse(button.dataset.remainingBookmarks);
+                        
+                        // Remover el botón
+                        button.remove();
+                        
+                        // Renderizar bookmarks restantes sin lazy loading
+                        const moreBookmarksHTML = this.renderBookmarksList(remainingBookmarks, false);
+                        
+                        // Agregar al final del contenedor
+                        container.insertAdjacentHTML('beforeend', moreBookmarksHTML);
+                        
+                        console.log(`Cargados ${remainingBookmarks.length} marcadores adicionales`);
+                    } catch (error) {
+                        console.error('Error cargando más marcadores:', error);
+                    }
+                }
+            }
+        });
+
+        // Search functionality
+        document.addEventListener('input', (e) => {
+            if (e.target.classList.contains('search-input')) {
+                const windowId = e.target.dataset.windowId;
+                const searchTerm = e.target.value.toLowerCase();
+                const window = this.windows.find(w => w.id == windowId);
+                
+                if (window) {
+                    const filtered = searchTerm ? 
+                        window.bookmarks.filter(b => 
+                            b.title.toLowerCase().includes(searchTerm) ||
+                            b.url.toLowerCase().includes(searchTerm)
+                        ) : window.bookmarks;
+                    
+                    const container = document.querySelector(`#window-content-${windowId} .bookmarks-container`);
+                    if (container) {
+                        container.innerHTML = this.renderBookmarksList(filtered);
+                    }
+                }
+            }
+        });
+        
+        // Auto-guardar cambios después de modificar ventanas (redimensionar, mover)
+        document.addEventListener('mouseup', () => {
+            // Pequeño retraso para asegurarse de que las propiedades se han actualizado
+            setTimeout(() => this.saveConfig(), 500);
+        });
+        
+        // Log global para depurar el evento mouseup
+        console.log('Adding global mouseup listener for debugging.');
+        document.addEventListener('mouseup', (e) => {
+            console.log('Global mouseup detected.');
+        });
+        
+        this.initialized = true; // Marcar como inicializado
+    }
+
+    makeDraggable(element, windowData) {
+        let isDragging = false;
+        let startX, startY;
+
+        const header = element.querySelector('.window-header');
+        
+        header.addEventListener('mousedown', (e) => {
+            // No es necesario verificar botones de cerrar/minimizar ya que se eliminaron
+            
+            isDragging = true;
+            startX = e.clientX - windowData.position.x;
+            startY = e.clientY - windowData.position.y;
+            
+            // Bring window to front
+            element.style.zIndex = Date.now();
+            
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', stopDrag);
+        });
+
+        const drag = (e) => {
+            if (!isDragging) return;
+            
+            windowData.position.x = e.clientX - startX;
+            windowData.position.y = e.clientY - startY;
+            
+            element.style.left = windowData.position.x + 'px';
+            element.style.top = windowData.position.y + 'px';
+        };
+
+        const stopDrag = () => {
+            isDragging = false;
+            document.removeEventListener('mousemove', drag);
+            document.removeEventListener('mouseup', stopDrag);
+            this.saveConfig();
+        };
+    }
+
+    // Método para alternar entre expandir y contraer el contenido de una ventana
+    toggleWindowContent(windowElement) {
+        if (!windowElement) return;
+        
+        // Verificar el estado actual de la ventana (contraída o expandida)
+        const isCollapsed = windowElement.dataset.collapsed === 'true';
+        
+        // Obtener el contenido de la ventana
+        const windowContent = windowElement.querySelector('.window-content');
+        if (!windowContent) return;
+        
+        // Obtener el título de la ventana
+        const windowTitle = windowElement.querySelector('.window-title');
+        const originalTitle = windowElement.dataset.originalTitle || '';
+        
+        if (isCollapsed) {
+            // Expandir la ventana
+            windowContent.style.display = 'block';
+            windowElement.style.minHeight = '150px';
+            
+            // Restaurar el título original
+            if (windowTitle) {
+                windowTitle.textContent = originalTitle;
+            }
+            
+            // Quitar el indicador de ventana contraída
+            windowElement.classList.remove('collapsed-window');
+            
+            // Actualizar el estado
+            windowElement.dataset.collapsed = 'false';
+        } else {
+            // Contraer la ventana
+            windowContent.style.display = 'none';
+            windowElement.style.minHeight = '40px'; // Solo mostrar la barra de título
+            windowElement.style.height = 'auto';
+            
+            // Añadir indicador al título de que está contraído
+            if (windowTitle) {
+                windowTitle.textContent = `${originalTitle} ▼`;
+            }
+            
+            // Añadir clase para estilos de ventana contraída
+            windowElement.classList.add('collapsed-window');
+            
+            // Actualizar el estado
+            windowElement.dataset.collapsed = 'true';
+        }
+        
+        // Guardar el estado en la configuración
+        const windowId = windowElement.dataset.id;
+        if (windowId) {
+            const index = this.windows.findIndex(w => w.id === windowId);
+            if (index !== -1) {
+                this.windows[index].collapsed = !isCollapsed;
+                this.saveConfig();
+            }
+        }
+    }
+    
+    makeResizable(element, windowData) {
+        // Create resize handle
+        const resizeHandle = document.createElement('div');
+        resizeHandle.className = 'resize-handle';
+        element.appendChild(resizeHandle);
+
+        let isResizing = false;
+        let startX, startY, startWidth, startHeight;
+
+        resizeHandle.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            startWidth = windowData.size.width;
+            startHeight = windowData.size.height;
+
+            document.addEventListener('mousemove', resize);
+            console.log('Adding mouseup listener for resize for window:', windowData.id);
+            document.addEventListener('mouseup', stopResize);
+        });
+
+        const resize = (e) => {
+            if (!isResizing) return;
+
+            windowData.size.width = startWidth + (e.clientX - startX);
+            windowData.size.height = startHeight + (e.clientY - startY);
+
+            element.style.width = windowData.size.width + 'px';
+            element.style.height = windowData.size.height + 'px';
+        };
+
+        const stopResize = () => {
+            console.log('stopResize ejecutado. isResizing:', isResizing); // Log más detallado
+            isResizing = false;
+            document.removeEventListener('mousemove', resize);
+            document.removeEventListener('mouseup', stopResize);
+            
+            // Forzar la actualización y guardado de la configuración
+            // Guardar explícitamente el tamaño actualizado
+            const windowIndex = this.windows.findIndex(w => w.id == windowData.id);
+            if (windowIndex !== -1) {
+                this.windows[windowIndex].size = {
+                    width: windowData.size.width,
+                    height: windowData.size.height
+                };
+                console.log(`Ventana ${windowData.id} redimensionada a ${windowData.size.width}x${windowData.size.height}. Nuevo tamaño en this.windows:`, this.windows[windowIndex].size);
+                this.saveConfig();
+            }
+        };
+    }
+
+    setBackground(bg) {
+        this.backgroundImage = bg;
+        const container = document.getElementById('background-container');
+        if (container) {
+            container.style.background = bg;
+            container.style.backgroundSize = 'cover';
+            container.style.backgroundPosition = 'center';
+            console.log('Fondo establecido a:', bg);
+        }
+        this.saveConfig();
+    }
+
+    closeWindow(windowId) {
+        this.windows = this.windows.filter(w => w.id != windowId);
+        console.log(`Ventana ${windowId} cerrada. Ventanas restantes:`, this.windows.length);
+        this.saveConfig();
+        this.renderWindows();
+    }
+
+    minimizeWindow(windowId) {
+        const window = this.windows.find(w => w.id == windowId);
+        if (window) {
+            window.minimized = !window.minimized;
+            const windowElement = document.querySelector(`[data-id="${windowId}"]`);
+            if (windowElement) {
+                windowElement.style.display = window.minimized ? 'none' : 'block';
+                console.log(`Ventana ${windowId} minimizada: ${window.minimized}`);
+            }
+            this.saveConfig();
+        }
+    }
+
+    toggleSettings() {
+        console.log('toggleSettings called'); // DEBUG
+        const settingsPanel = document.getElementById('settings-panel');
+        if (settingsPanel) {
+            settingsPanel.classList.toggle('hidden');
+            console.log('Settings panel hidden class toggled:', settingsPanel.classList.contains('hidden')); // DEBUG
+        } else {
+            console.error('Settings panel not found in toggleSettings!'); // DEBUG
+            // Intenta volver a renderizar el panel de configuración
+            const backgroundContainer = document.getElementById('background-container');
+            if (backgroundContainer) {
+                const settingsPanelHTML = this.renderSettingsPanel();
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = settingsPanelHTML;
+                backgroundContainer.appendChild(tempDiv.firstElementChild);
+                console.log('Intentando recrear el panel de configuración');
+            }
+        }
+    }
+    
+    toggleTheme() {
+        console.log('toggleTheme called. Current theme:', this.theme); // DEBUG
+        const newTheme = this.theme === 'light' ? 'dark' : 'light';
+        this.setTheme(newTheme);
+        
+        // Forzar guardado inmediato de la configuración
+        this.saveConfig();
+        
+        // Mostrar el tema actual en la consola para depuración
+        console.log('Tema cambiado a:', newTheme);
+        console.log('Verificación de tema actual:', this.theme);
+        
+        // Aplicar clase directamente al root para asegurar
+        const appElement = document.querySelector('.app');
+        if (appElement) {
+            appElement.classList.remove('light', 'dark');
+            appElement.classList.add(newTheme);
+            console.log('Clase aplicada directamente:', appElement.className);
+        }
+    }
+
+    setTheme(theme) {
+        console.log('setTheme called with theme:', theme); // DEBUG
+        
+        // Asegurarse de que el tema sea 'light' o 'dark'
+        if (theme !== 'light' && theme !== 'dark') {
+            theme = 'light'; // Valor por defecto si el tema no es válido
+        }
+        
+        // Guardar el tema en la instancia
+        this.theme = theme;
+        
+        // Aplicar el tema al elemento .app
+        const appElement = document.querySelector('.app');
+        if (appElement) {
+            // Eliminar primero todas las clases de tema
+            appElement.classList.remove('light', 'dark');
+            // Añadir la clase del nuevo tema
+            appElement.classList.add(theme);
+            console.log('App class set to:', appElement.className); // DEBUG
+        } else {
+            console.error('.app element not found!'); // DEBUG
+        }
+        
+        // Actualizar el icono del botón de tema
+        const themeBtn = document.getElementById('theme-toggle-btn');
+        if (themeBtn) {
+            themeBtn.innerHTML = `<span>${theme === 'dark' ? '☀️' : '🌙'}</span>`;
+            console.log('Theme button icon updated.'); // DEBUG
+        } else {
+            console.error('Theme toggle button for icon update not found!'); // DEBUG
+        }
+        
+        // Aplicar los estilos del tema en tiempo real sin necesidad de refrescar
+        const isDarkMode = theme === 'dark';
+        
+        // Actualizar el pie de página
+        const footer = document.getElementById('app-footer');
+        if (footer) {
+            footer.style.background = isDarkMode ? 'rgba(0, 0, 0, 0.8)' : 'rgba(255, 255, 255, 0.9)';
+            footer.style.color = isDarkMode ? 'white' : '#333';
+            footer.style.borderTop = `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`;
+            
+            // Actualizar colores del texto en el footer
+            const footerTexts = footer.querySelectorAll('p');
+            footerTexts.forEach(p => {
+                p.style.color = isDarkMode ? 'white' : (p.style.fontSize === '16px' ? '#333' : '#555');
+            });
+        }
+        
+        // Actualizar las ventanas en tiempo real
+        const allWindows = document.querySelectorAll('.draggable-window');
+        allWindows.forEach(window => {
+            // Aplicar fondos según el tema usando referencias de las imágenes
+            if (isDarkMode) {
+                // En modo oscuro: fondo casi negro
+                window.style.backgroundColor = 'rgba(19, 19, 19, 0.95)';
+                window.style.boxShadow = '0 5px 15px rgba(0, 0, 0, 0.5)';
+            } else {
+                // En modo claro: fondo blanco
+                window.style.backgroundColor = 'rgba(255, 255, 255, 0.98)';
+                window.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.1)';
+            }
+            window.style.borderRadius = '8px';
+            
+            // Contenido de ventanas
+            const content = window.querySelector('.window-content');
+            if (content) {
+                content.style.backgroundColor = 'transparent';
+                content.style.color = isDarkMode ? '#f5f5f5' : '#333';
+                content.style.padding = '10px';
+            }
+            
+            // Cabecera de ventana - restaurando el verde original como en las imágenes
+            const header = window.querySelector('.window-header');
+            if (header) {
+                // Verde para ambos modos, exactamente como en las imágenes
+                header.style.backgroundColor = '#4CAF50'; // Verde consistente
+                header.style.borderTopLeftRadius = '8px';
+                header.style.borderTopRightRadius = '8px';
+                header.style.borderBottom = '0';
+                header.style.padding = '8px 12px';
+                
+                const title = header.querySelector('.window-title');
+                if (title) {
+                    title.style.color = 'white';
+                    title.style.fontWeight = 'bold';
+                    title.style.fontSize = '14px';
+                    title.style.textShadow = '0 1px 1px rgba(0, 0, 0, 0.3)';
+                }
+                
+                // Botones en la cabecera, si existen
+                const buttons = header.querySelectorAll('button');
+                if (buttons.length > 0) {
+                    buttons.forEach(button => {
+                        button.style.color = 'white';
+                        button.style.background = 'transparent';
+                        button.style.border = '0';
+                        button.style.fontSize = '16px';
+                        button.style.cursor = 'pointer';
+                    });
+                }
+            }
+            
+            // Estilizar enlaces según el tema
+            const links = window.querySelectorAll('a, .bookmark-link');
+            links.forEach(link => {
+                link.style.color = isDarkMode ? '#81C784' : '#4CAF50';
+                link.style.textDecoration = 'none';
+                link.style.fontWeight = 'bold';
+                link.style.textShadow = isDarkMode ? '0 1px 1px rgba(0, 0, 0, 0.5)' : 'none';
+            });
+        });
+        
+        // Guardar también en localStorage para respaldo
+        try {
+            localStorage.setItem('bookmarkManager_theme', theme);
+        } catch (e) {
+            console.error('Error saving theme to localStorage', e);
+        }
+        
+        // Guardar en chrome.storage si está disponible
+        if (typeof chrome !== 'undefined' && chrome.storage) {
+            chrome.storage.sync.set({theme: theme}, function() {
+                console.log('Tema guardado en chrome.storage:', theme);
+            });
+        }
+        
+        // Guardar toda la configuración
+        this.saveConfig();
+        
+        // Aplicar también los estilos CSS específicos del tema
+        document.body.dataset.theme = theme;
+        
+        console.log('Tema establecido y guardado:', theme);
+    }
+
+    // Método público que usa debouncing
+    saveConfig() {
+        this.debouncedSaveConfig();
+    }
+
+    // Método privado que ejecuta el guardado inmediato
+    _saveConfigImmediate() {
+        console.log('Guardando configuración actual:', this.windows);
+        // Crear objeto de configuración completa
+        const fullConfig = {
+            windows: this.windows,
+            backgroundImage: this.backgroundImage,
+            theme: this.theme,
+            defaultSearchEngine: this.defaultSearchEngine,
+            defaultTranslationEngine: this.defaultTranslationEngine,
+            layoutSaved: true,
+            lastSaved: new Date().toISOString()
+        };
+        
+        // Guardar en chrome.storage
+        if (typeof chrome !== 'undefined' && chrome.storage) {
+            chrome.storage.sync.set({
+                windows: this.windows,
+                backgroundImage: this.backgroundImage,
+                theme: this.theme,
+                defaultSearchEngine: this.defaultSearchEngine,
+                defaultTranslationEngine: this.defaultTranslationEngine,
+                layoutSaved: true,
+                lastSaved: new Date().toISOString(),
+                fullConfig: fullConfig // Guardamos todo en un solo objeto también
+            }, () => {
+                console.log('Configuración guardada en chrome.storage');
+            });
+        }
+        
+        // Guardar también en localStorage como respaldo
+        try {
+            // Guardar configuración completa en un solo objeto JSON
+            localStorage.setItem('bookmarkManager_fullConfig', JSON.stringify(fullConfig));
+            
+            // Guardar también componentes individuales para compatibilidad
+            localStorage.setItem('bookmarkManager_theme', this.theme);
+            localStorage.setItem('bookmarkManager_searchEngine', this.defaultSearchEngine);
+            localStorage.setItem('bookmarkManager_translationEngine', this.defaultTranslationEngine);
+            localStorage.setItem('bookmarkManager_windows', JSON.stringify(this.windows));
+            
+            console.log('Configuración guardada en localStorage:', this.theme, this.windows.length, 'ventanas');
+        } catch (e) {
+            console.error('Error al guardar en localStorage:', e);
+        }
+    }
+    
+    // Método para manejar la búsqueda web
+    handleWebSearch(windowId) {
+        const searchInput = document.getElementById(`web-search-input-${windowId}`);
+        if (!searchInput || !searchInput.value.trim()) {
+            console.warn('Intento de búsqueda web sin input o valor vacío.');
+            return;
+        }
+        
+        // Sanitizar el texto de búsqueda
+        const searchText = SecurityUtils.sanitizeText(searchInput.value.trim());
+        if (!searchText || searchText.length === 0) {
+            console.warn('Texto de búsqueda contiene caracteres no válidos.');
+            return;
+        }
+        
+        const query = encodeURIComponent(searchText);
+        const selectedEngine = this.searchEngines.find(engine => engine.name === this.defaultSearchEngine) || this.searchEngines[0];
+        
+        const url = SecurityUtils.sanitizeUrl(selectedEngine.url + query);
+        
+        if (!url) {
+            console.error('URL de búsqueda no válida:', selectedEngine.url + query);
+            return;
+        }
+        
+        console.log(`Buscando "${searchText}" en ${selectedEngine.name} (${url})`);
+        
+        // Abrir la búsqueda en la pestaña actual
+        if (typeof chrome !== 'undefined' && chrome.tabs) {
+            chrome.tabs.update({ url });
+        } else {
+            window.location.href = url;
+        }
+        
+        // Limpiar el campo de búsqueda
+        searchInput.value = '';
+    }
+    
+    // Método para manejar la traducción
+    handleTranslation(windowId) {
+        const translationInput = document.getElementById(`translation-input-${windowId}`);
+        if (!translationInput || !translationInput.value.trim()) {
+            console.warn('Intento de traducción sin texto.');
+            return;
+        }
+        
+        // Sanitizar el texto de traducción
+        const translationText = SecurityUtils.sanitizeText(translationInput.value.trim());
+        if (!translationText || translationText.length === 0) {
+            console.warn('Texto de traducción contiene caracteres no válidos.');
+            return;
+        }
+        
+        const text = encodeURIComponent(translationText);
+        const selectedEngine = this.translationEngines.find(engine => engine.name === this.defaultTranslationEngine) || this.translationEngines[0];
+        
+        const url = SecurityUtils.sanitizeUrl(selectedEngine.url + text);
+        
+        if (!url) {
+            console.error('URL de traducción no válida:', selectedEngine.url + text);
+            return;
+        }
+        
+        console.log(`Traduciendo texto en ${selectedEngine.name} (${url})`);
+        
+        // Abrir la traducción en la pestaña actual
+        if (typeof chrome !== 'undefined' && chrome.tabs) {
+            chrome.tabs.update({ url });
+        } else {
+            window.location.href = url;
+        }
+        
+        // Limpiar el campo de traducción
+        translationInput.value = '';
+    }
+    
+    // Método para crear una nueva ventana de marcadores con una carpeta nueva
+    async createBookmarkWindow(folderName) {
+        if (!folderName || folderName.trim() === '') {
+            console.warn('Se intentó crear una ventana sin nombre de carpeta');
+            return;
+        }
+        
+        console.log(`Creando nueva ventana de marcadores para la carpeta: ${folderName}`);
+        
+        // Crear una nueva carpeta en los marcadores del navegador
+        try {
+            // Primero verificar si existe Chrome API para marcadores
+            if (typeof chrome !== 'undefined' && chrome.bookmarks) {
+                // Obtener la carpeta raíz de marcadores (normalmente "1" es "Barra de marcadores")
+                const parentId = '1'; // Usar barra de marcadores como ubicación predeterminada
+                
+                // Crear la nueva carpeta
+                const newFolder = await new Promise(resolve => {
+                    chrome.bookmarks.create({
+                        parentId: parentId,
+                        title: folderName
+                    }, folder => {
+                        resolve(folder);
+                    });
+                });
+                
+                console.log('Nueva carpeta de marcadores creada:', newFolder);
+                
+                // Crear una nueva ventana para esta carpeta
+                const windowData = {
+                    id: Date.now(),
+                    type: 'bookmark',
+                    folder: folderName,
+                    folderId: newFolder.id,
+                    position: { x: 50, y: 50 }, // Posición inicial (será ajustada por reorganizeWindows)
+                    size: { width: 350, height: 400 },
+                    minimized: false,
+                    bookmarks: [],
+                    colorClass: `window-color-${Math.floor(Math.random() * 5) + 1}` // Color aleatorio
+                };
+                
+                // Añadir la ventana a la lista
+                this.windows.push(windowData);
+                
+                // Guardar la nueva configuración
+                this.saveConfig();
+                
+                // Reorganizar las ventanas y renderizar
+                this.reorganizeWindows(true);
+                
+                // Cargar los marcadores de nuevo para incluir la nueva carpeta
+                this.loadBookmarks();
+                
+                return windowData;
+            } else {
+                // Si no hay API de Chrome, crear solo una ventana simulada
+                console.log('API de Chrome no disponible, creando ventana simulada');
+                
+                const windowData = {
+                    id: Date.now(),
+                    type: 'bookmark',
+                    folder: folderName,
+                    position: { x: 50, y: 50 },
+                    size: { width: 350, height: 400 },
+                    minimized: false,
+                    bookmarks: [],
+                    colorClass: `window-color-${Math.floor(Math.random() * 5) + 1}`
+                };
+                
+                this.windows.push(windowData);
+                this.saveConfig();
+                this.reorganizeWindows(true);
+                
+                return windowData;
+            }
+        } catch (error) {
+            console.error('Error al crear la carpeta de marcadores:', error);
+            alert('No se pudo crear la carpeta de marcadores. Asegúrate de que la extensión tiene permisos.');
+        }
+    }
+    
+    // Método para restablecer toda la configuración
+    async resetConfig() {
+        console.log('=== RESTABLECIENDO CONFIGURACIÓN COMPLETA ===');
+        
+        try {
+            // 1. Limpiar completamente el almacenamiento
+            if (typeof chrome !== 'undefined' && chrome.storage) {
+                await new Promise(resolve => {
+                    chrome.storage.sync.clear(() => {
+                        console.log('chrome.storage.sync limpiado.');
+                        resolve();
+                    });
+                });
+            }
+            localStorage.clear();
+            console.log('localStorage limpiado.');
+            
+            // 2. Establecer valores predeterminados explícitamente
+            this.backgroundImage = 'linear-gradient(135deg, #546190 0%, #483874 100%)';
+            this.theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            this.initialized = false; // Forzar reinicialización completa
+            
+            // 3. Limpiar completamente las ventanas existentes
+            this.windows = [];
+            
+            // 4. Limpiar el DOM para forzar un renderizado completo
+            const root = document.getElementById('root');
+            if (root) {
+                root.innerHTML = '';
+            }
+            
+            // 5. Inicializar array de ventanas
+            this.windows = [];
+            
+            console.log('Obteniendo marcadores directamente...');
+            
+            // 6. Obtener marcadores directamente de Chrome API (sin pasar por loadBookmarks)
+            if (typeof chrome !== 'undefined' && chrome.bookmarks) {
+                // Obtener los marcadores directamente de la API
+                const tree = await new Promise(resolve => 
+                    chrome.bookmarks.getTree(resolve)
+                );
+                
+                const bookmarks = this.flattenBookmarks(tree);
+                console.log('Marcadores obtenidos directamente de Chrome API:', bookmarks.length);
+                
+                // Obtener todas las carpetas únicas
+                const folders = [...new Set(bookmarks.map(b => b.folder))];
+                console.log('Carpetas encontradas durante resetConfig:', folders);
+                
+                // 7. Crear ventanas para cada carpeta con posiciones en cuadrícula (grid)
+                // Configuración del grid mejorada para mejor distribución
+                const windowWidth = 350;  // Ancho de cada ventana
+                const windowHeight = 350; // Alto de cada ventana (reducido para mejor ajuste)
+                const headerHeight = 250; // Altura para las ventanas de búsqueda y traductor (reducida)
+                const marginX = 30;       // Margen horizontal aumentado entre ventanas
+                const marginY = 30;       // Margen vertical aumentado entre ventanas
+                const startX = 40;        // Posición inicial X aumentada para mejor espaciado
+                const startY = 70;        // Posición inicial Y aumentada para dar más espacio al título
+                
+                // Usar el ancho real del navegador en lugar de un valor fijo
+                const browserWidth = typeof window !== 'undefined' ? window.innerWidth - 40 : 1200; // 40px para márgenes
+                
+                // Limitar la cantidad de ventanas por fila para una mejor organización
+                // Máximo 3 ventanas por fila para que no queden demasiado apretadas
+                const maxWindowsPerRow = Math.max(1, Math.min(3, Math.floor(browserWidth / (windowWidth + marginX + 20))));
+                
+                // Aumentar un poco el margen entre ventanas para mejor distribución
+                const adjustedMarginX = marginX + 15;
+                const adjustedMarginY = marginY + 10;
+                
+                console.log(`Ancho real del navegador: ${browserWidth}px, ventanas por fila: ${maxWindowsPerRow}`);
+                
+                console.log(`Configuración de grid: ${maxWindowsPerRow} ventanas por fila, ancho de navegador: ${browserWidth}px`);
+                
+                // Primero colocamos las ventanas esenciales: búsqueda y traductor en posiciones fijas
+                // Ya hemos creado esas ventanas antes, así que solo hay que posicionar las de marcadores
+                
+                // Primero colocamos las ventanas esenciales: búsqueda y traductor
+                // Creamos la ventana de búsqueda web en la primera posición
+                this.windows.push({
+                    id: Date.now() + 1000,
+                    type: 'search',
+                    folder: 'Búsqueda Web',
+                    position: { x: startX, y: startY },
+                    size: { width: windowWidth, height: headerHeight }, // Altura igual para ambas ventanas
+                    minimized: false,
+                    colorClass: 'window-color-3'
+                });
+                
+                // Creamos la ventana de traductor en la segunda posición
+                this.windows.push({
+                    id: Date.now() + 2000,
+                    type: 'translation',
+                    folder: 'Traductor',
+                    position: { x: startX + windowWidth + marginX, y: startY },
+                    size: { width: windowWidth, height: headerHeight }, // Altura igual para ambas ventanas
+                    minimized: false,
+                    colorClass: 'window-color-2'
+                });
+                
+                console.log('Ventanas de búsqueda y traductor creadas en la primera fila');
+                
+                // Ahora colocamos las ventanas de marcadores en formato grid
+                // Empezamos en la segunda fila (gridRow = 1)
+                let gridRow = 1;
+                let gridCol = 0;
+                
+                folders.forEach((folder, index) => {
+                    if (folder) {
+                        const folderBookmarks = bookmarks.filter(b => b.folder === folder);
+                        if (folderBookmarks.length > 0) {
+                            // Calcular posición en el grid
+                            if (gridCol >= maxWindowsPerRow) {
+                                gridCol = 0;
+                                gridRow++;
+                            }
+                            
+                            // Usar los márgenes ajustados para una mejor distribución
+                            const posX = startX + gridCol * (windowWidth + adjustedMarginX);
+                            // Calcular posición Y para que esté justo debajo de las ventanas de cabecera
+                            // Las ventanas de cabecera tienen altura 'headerHeight', así que empezamos justo debajo
+                            const posY = startY + headerHeight + adjustedMarginY + (gridRow - 1) * (windowHeight + adjustedMarginY);
+                            
+                            // Crear ventana para esta carpeta
+                            // Buscar información de jerarquía para esta carpeta
+                            let folderPath = folder;
+                            
+                            // Obtener el primer marcador de esta carpeta para obtener la información de la ruta
+                            const firstBookmark = folderBookmarks[0];
+                            if (firstBookmark && firstBookmark.folderPath) {
+                                folderPath = firstBookmark.folderPath;
+                            }
+                            
+                            const windowData = {
+                                id: Date.now() + index + 100,
+                                type: 'bookmark',
+                                folder: folder,
+                                folderPath: folderPath, // Información de jerarquía completa
+                                position: { x: posX, y: posY },
+                                size: { width: windowWidth, height: windowHeight },
+                                minimized: false,
+                                bookmarks: folderBookmarks,
+                                colorClass: `window-color-${(index % 5) + 1}`
+                            };
+                            
+                            this.windows.push(windowData);
+                            console.log(`Ventana creada para carpeta "${folder}" en grid (${gridRow},${gridCol}) en pos (${posX},${posY})`);
+                            
+                            // Avanzar a la siguiente columna
+                            gridCol++;
+                        }
+                    }
+                });
+                
+                // Guardar los marcadores en la instancia
+                this.bookmarks = bookmarks;
+            } else {
+                // Si no está en un entorno Chrome, usar datos de ejemplo
+                console.log('Usando datos de ejemplo (no Chrome)');
+                await this.loadBookmarks(); // Cargará datos de ejemplo
+            }
+            
+            // 8. Renderizar todo
+            console.log(`Renderizando ${this.windows.length} ventanas...`);
+            this.render();
+            this.setTheme(this.theme);
+            this.setBackground(this.backgroundImage);
+            this.setupEventListeners();
+            
+            // Activar la bandera para forzar la reorganización
+            this.forceReorganize = true;
+            
+            console.log('Restablecimiento completado exitosamente');
+            alert('La configuración se ha restablecido correctamente. La página se recargará para aplicar los cambios.');
+            
+            // Recargar la página completa para asegurar que todo se reinicializa correctamente
+            // Esta es la solución más segura para garantizar que todos los elementos se vuelvan a crear
+            setTimeout(() => {
+                window.location.reload();
+            }, 500);
+            
+            return true;
+        } catch (error) {
+            console.error('Error en resetConfig:', error);
+            alert('Ocurrió un error al restablecer la configuración. Por favor, recarga la extensión.');
+        }
+    }
+
+    // Variable para controlar cuándo se debe reorganizar automáticamente
+    // Esto evita que se reorganicen las ventanas cuando el usuario las ha movido manualmente
+    lastBrowserWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
+    forceReorganize = false; // Bandera para forzar reorganización (usado en resetConfig)
+    
+    // Método para reorganizar las ventanas según el tamaño actual del navegador
+    reorganizeWindows(force = false) {
+        if (!this.windows || this.windows.length === 0) {
+            console.log('No hay ventanas para reorganizar');
+            return;
+        }
+        
+        // Obtener el ancho actual del navegador
+        const currentBrowserWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
+        
+        // Solo reorganizar si se fuerza (reset), el ancho del navegador ha cambiado significativamente,
+        // o es la primera carga, o si se ha activado la bandera forceReorganize
+        const widthChangedSignificantly = Math.abs(currentBrowserWidth - this.lastBrowserWidth) > 100;
+        
+        if (!force && !this.forceReorganize && !widthChangedSignificantly) {
+            console.log('Omitiendo reorganización para respetar posiciones personalizadas');
+            return;
+        }
+        
+        console.log(`Reorganizando ventanas. Forzado: ${force}, ForceReorg: ${this.forceReorganize}, Cambio de ancho: ${widthChangedSignificantly}`);
+        
+        // Configuración del grid optimizada para mejor distribución y alineamiento
+        const windowWidth = 320;  // Ancho reducido para mejor ajuste
+        const windowHeight = 320; // Alto reducido para mejor ajuste
+        const headerHeight = 200; // Altura reducida para ventanas de cabecera
+        const marginX = 40;       // Margen horizontal aumentado para mejor separación
+        const marginY = 40;       // Margen vertical aumentado para mejor separación
+        const startX = 60;        // Posición inicial X aumentada para mejor alineación
+        const startY = 100;       // Posición inicial Y aumentada para mejor espaciado desde la cabecera
+        
+        // Guardar el ancho actual para futuras comparaciones
+        this.lastBrowserWidth = currentBrowserWidth;
+        
+        // Calcular cuantas ventanas caben por fila (mejorado para evitar desbordes)
+        const maxWindowsPerRow = Math.max(1, Math.floor((currentBrowserWidth - 120) / (windowWidth + marginX)));
+        
+        console.log(`Reorganizando para ancho: ${currentBrowserWidth}px, ventanas por fila: ${maxWindowsPerRow}`);
+        
+        // Crear copias temporales de las posiciones originales por si necesitamos revertir
+        const originalPositions = this.windows.map(w => ({
+            id: w.id,
+            position: { ...w.position }
+        }));
+        
+        try {
+            // Separar las ventanas por tipo
+            const headerWindows = this.windows.filter(w => w.type === 'search' || w.type === 'translation');
+            const bookmarkWindows = this.windows.filter(w => w.type === 'bookmark');
+            
+            // Reposicionar ventanas de cabecera (búsqueda y traductor)
+            if (headerWindows.length > 0) {
+                // Colocar búsqueda a la izquierda
+                const searchWindow = headerWindows.find(w => w.type === 'search');
+                if (searchWindow) {
+                    searchWindow.position = { x: startX, y: startY };
+                }
+                
+                // Colocar traductor a la derecha de búsqueda
+                const translationWindow = headerWindows.find(w => w.type === 'translation');
+                if (translationWindow) {
+                    translationWindow.position = { x: startX + windowWidth + marginX, y: startY };
+                }
+            }
+            
+            // Reposicionar ventanas de marcadores en formato grid
+            if (bookmarkWindows.length > 0) {
+                let gridRow = 1; // Empezar en la fila 1 (debajo de cabecera)
+                let gridCol = 0;
+                
+                // Ordenar ventanas alfabéticamente por título para mejor organización
+                bookmarkWindows.sort((a, b) => {
+                    // Obtener los títulos y manejar posibles valores indefinidos
+                    const titleA = (a.title || '').toLowerCase();
+                    const titleB = (b.title || '').toLowerCase();
+                    return titleA.localeCompare(titleB);
+                });
+                
+                bookmarkWindows.forEach((window, index) => {
+                    // Calcular posición en el grid
+                    if (gridCol >= maxWindowsPerRow) {
+                        gridCol = 0;
+                        gridRow++;
+                    }
+                    
+                    // Actualizar posición con cálculos más precisos
+                    window.position = {
+                        x: startX + gridCol * (windowWidth + marginX),
+                        y: startY + headerHeight + marginY + (gridRow - 1) * (windowHeight + marginY)
+                    };
+                    
+                    // Avanzar a la siguiente columna
+                    gridCol++;
+                });
+            }
+            
+            // Renderizar con las nuevas posiciones
+            this.render();
+            
+            // Guardar la configuración actualizada
+            this.saveConfig();
+            
+            // Restablecer la bandera de forzar reorganización
+            this.forceReorganize = false;
+            
+            console.log('Ventanas reorganizadas exitosamente.');
+        } catch (error) {
+            console.error('Error al reorganizar ventanas:', error);
+            
+            // Revertir a posiciones originales en caso de error
+            originalPositions.forEach(orig => {
+                const window = this.windows.find(w => w.id === orig.id);
+                if (window) {
+                    window.position = orig.position;
+                }
+            });
+        }
+    }
+    
+    // El método _applyDefaultConfiguration ha sido eliminado y su funcionalidad
+    // ha sido integrada directamente en el método resetConfig
+}
+
+function startApp() {
+    // Crear la instancia de BookmarkManager y guardarla globalmente
+    window.bookmarkManager = new BookmarkManager();
+    
+    // Agregar listener para evento keydown para depuración
+    document.addEventListener('keydown', function(e) {
+        // Alt+S para abrir configuración
+        if (e.altKey && e.key === 's') {
+            console.log('Atajo de teclado para configuración');
+            window.bookmarkManager.toggleSettings();
+        }
+        // Alt+T para cambiar tema
+        if (e.altKey && e.key === 't') {
+            console.log('Atajo de teclado para cambiar tema');
+            window.bookmarkManager.toggleTheme();
+        }
+    });
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startApp);
+} else {
+    // El DOM ya está cargado
+    startApp();
+}

@@ -1,0 +1,43 @@
+# Archivos del sistema
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Backups y archivos temporales
+*_backup_*
+*.backup
+backup_*
+*.tar.gz
+*.zip
+
+# Archivos de desarrollo
+CLAUDE.md
+MIGRATION.md
+
+# Archivos de IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Dependencies (si fuera necesario en el futuro)
+node_modules/
+dist/
+build/
+
+# Archivos de configuración local
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local

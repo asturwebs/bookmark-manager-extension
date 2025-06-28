@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestor de Marcadores</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 20px;
+      width: 320px;
+      background-color: #f5f5f5;
+    }
+    
+    .popup-header {
+      text-align: center;
+      margin-bottom: 15px;
+    }
+    
+    .popup-header h1 {
+      font-size: 18px;
+      margin: 0;
+      color: #4a6fa5;
+    }
+    
+    .popup-content {
+      background-color: white;
+      border-radius: 8px;
+      padding: 15px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    .action-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    
+    .action-button {
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      background-color: #4a6fa5;
+      color: white;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-weight: 500;
+    }
+    
+    .action-button:hover {
+      background-color: #3a5a8c;
+      transform: translateY(-2px);
+    }
+    
+    .recent-bookmarks {
+      margin-top: 15px;
+    }
+    
+    .recent-bookmarks h2 {
+      font-size: 14px;
+      margin-bottom: 10px;
+      color: #555;
+    }
+    
+    .bookmark-item {
+      display: flex;
+      align-items: center;
+      padding: 8px;
+      border-radius: 6px;
+      margin-bottom: 5px;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+    
+    .bookmark-item:hover {
+      background-color: #f0f0f0;
+    }
+    
+    .bookmark-favicon {
+      width: 16px;
+      height: 16px;
+      margin-right: 10px;
+    }
+    
+    .bookmark-title {
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .footer {
+      margin-top: 15px;
+      text-align: center;
+      font-size: 12px;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+  <div class="popup-header">
+    <h1>Gestor de Marcadores</h1>
+  </div>
+  
+  <div class="popup-content">
+    <div class="action-buttons">
+      <button class="action-button" id="openNewTab">Nueva Pestaña</button>
+      <button class="action-button" id="openSettings">Configuración</button>
+    </div>
+    
+    <div class="recent-bookmarks">
+      <h2>Marcadores Recientes</h2>
+      <div id="recentBookmarksList">
+        <!-- Los marcadores recientes se cargarán dinámicamente -->
+      </div>
+    </div>
+  </div>
+  
+  <div class="footer">
+    <p>Versión 1.0.0</p>
+    <p>Desarrollado por <a href="https://asturwebs.es" target="_blank" style="color: #4a6fa5; text-decoration: none;">asturwebs.es</a></p>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>

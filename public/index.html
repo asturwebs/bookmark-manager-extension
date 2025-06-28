@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestor de Marcadores</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="root"></div>
+  <!-- Cargar módulos en orden de dependencia -->
+  <script src="js/utils/security-utils.js" defer></script>
+  <script src="js/utils/performance-utils.js" defer></script>
+  <script src="js/managers/state-manager.js" defer></script>
+  <script src="js/managers/bookmark-manager.js" defer></script>
+  <script src="js/managers/window-manager.js" defer></script>
+  <script src="js/managers/theme-manager.js" defer></script>
+  <script src="js/main.js" defer></script>
+  
+  <!-- Mantener bundle.js como respaldo si es necesario -->
+  <!-- <script src="js/bundle.js" defer></script> -->
+</body>
+</html>
