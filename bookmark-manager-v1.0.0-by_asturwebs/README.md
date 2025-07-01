@@ -10,8 +10,9 @@ Una extensión moderna para navegadores Chromium (Brave, Chrome, Edge) que trans
 
 ### 🪟 **Ventanas Flotantes Arrastrables**
 - Organiza marcadores en ventanas independientes por carpeta
-- Drag & drop para reposicionar ventanas
-- Persistencia automática de posiciones
+- Drag & drop optimizado con sincronización precisa del cursor
+- Posicionamiento inteligente: grilla organizada (no cascada caótica)
+- Persistencia automática de posiciones y tamaños
 
 ### 🔍 **Herramientas Integradas**
 - **Búsqueda Web**: Google, Brave, DuckDuckGo, Ecosia
@@ -22,6 +23,8 @@ Una extensión moderna para navegadores Chromium (Brave, Chrome, Edge) que trans
 - **Temas**: Modo claro/oscuro automático
 - **Fondos**: 4 gradientes predefinidos + colores personalizados
 - **Imágenes**: Fondos personalizados (archivo local o URL)
+- **Color Picker**: 11 colores temáticos para headers de ventanas
+- **Auto-detección**: Colores automáticos por categoría de carpeta (Desarrollo=Azul, Trabajo=Naranja, etc.)
 
 ### ⚡ **Alto Rendimiento**
 - Arquitectura modular con Vanilla JavaScript
@@ -74,10 +77,11 @@ cd bookmark-manager-extension
 3. **⚙️** para personalizar temas y fondos
 
 ### **Controles**
-- **Arrastrar**: Desde barra superior de ventana
+- **Arrastrar**: Desde barra superior de ventana (cursor sincronizado)
 - **Cerrar**: Botón **×** (solo ventanas de marcadores)
 - **Buscar**: Campo de búsqueda en cada ventana
 - **Temas**: Botón **🌙/☀️** en header
+- **Cambiar color**: Botón **🎨** en cada ventana para personalizar header
 
 ### **Personalización**
 - **4 gradientes**: Azul, Verde, Rojo, Morado
@@ -145,6 +149,28 @@ window.bookmarkManagerApp.clearStorage()   // Limpiar storage
   ]
 }
 ```
+
+## 🆕 Changelog v1.0.1
+
+### 🐛 **Bugs Críticos Corregidos**
+- ✅ **Cascada de ventanas**: Las ventanas ya no aparecen apiladas tras resetear → Ahora usan posicionamiento en grilla organizada
+- ✅ **Color picker fantasma**: Ya no cambia el color de la ventana incorrecta → Sistema robusto de identificación de ventanas
+- ✅ **Ventanas que desaparecen**: Ya no se pierden ventanas al añadir nuevas → Actualizaciones incrementales del DOM
+- ✅ **Cursor desincronizado**: Mouse ya no se desplaza mal al arrastrar → Sistema de posicionamiento basado en deltas
+- ✅ **Carpetas fantasma**: Carpetas eliminadas ya no aparecen en diálogos → Verificación dual estado+DOM
+- ✅ **Distorsión de contenido**: Restaurados tamaños originales (350x400) → Mejor legibilidad
+
+### 🎨 **Nuevas Funcionalidades**
+- 🆕 **Selector de colores interactivo**: Menú desplegable con 11 colores temáticos
+- 🆕 **Detección automática de colores**: Desarrollo=Azul, Trabajo=Naranja, Social=Rosa, etc.
+- 🆕 **Posicionamiento inteligente**: Ventanas fijas junto al título, bookmark windows en grilla
+- 🆕 **Sistema de debugging mejorado**: Logs exhaustivos para resolución de problemas
+- 🆕 **Notificaciones animadas**: Feedback visual para acciones del usuario
+
+### 🚀 **Mejoras de Rendimiento**
+- ⚡ **Búsqueda optimizada**: Throttling y caché para filtros más rápidos
+- ⚡ **Gestión de memoria**: Limpieza automática de event listeners
+- ⚡ **Renderizado incremental**: Solo actualiza ventanas que cambian
 
 ## 🔧 Configuración Avanzada
 

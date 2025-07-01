@@ -1,0 +1,19 @@
+<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <!-- Fondo con gradiente verde -->
+  <defs>
+    <linearGradient id="bgGradient16" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4CAF50;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2E7D32;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Fondo redondeado -->
+  <rect width="16" height="16" rx="2.5" fill="url(#bgGradient16)"/>
+  
+  <!-- Marcador principal (carpeta) -->
+  <path d="M2 4 L2 13 L14 13 L14 6 L8 6 L6 4 Z" fill="white" opacity="0.9"/>
+  
+  <!-- Ventanas flotantes pequeñas -->
+  <rect x="9" y="2" width="4" height="3" rx="0.5" fill="white" opacity="0.7"/>
+  <rect x="10.5" y="3" width="4" height="3" rx="0.5" fill="white" opacity="0.5"/>
+</svg>

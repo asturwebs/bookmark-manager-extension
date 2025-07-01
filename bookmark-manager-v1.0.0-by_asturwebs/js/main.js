@@ -80,24 +80,36 @@ class BookmarkManagerApp {
         if (!windows || windows.length === 0) {
             console.log('📦 Creando ventanas por defecto...');
             
+            // Calcular posiciones junto al título
+            const titleWidth = 400; // Ancho aproximado del título "Gestor de Marcadores"
+            const centerX = window.innerWidth / 2;
+            const windowWidth = 350; // Tamaño original restaurado
+            const windowHeight = 400; // Tamaño original restaurado
+            const titleY = 40; // Altura más arriba para estar realmente junto al título
+            
+            const leftX = centerX - titleWidth/2 - windowWidth - 20; // Izquierda del título
+            const rightX = centerX + titleWidth/2 + 20; // Derecha del título
+            
             const defaultWindows = [
                 {
                     id: Date.now() + 1,
                     type: 'search',
                     folder: 'Búsqueda Web',
-                    position: { x: 50, y: 120 },
-                    size: { width: 350, height: 400 },
+                    position: { x: leftX, y: titleY },
+                    size: { width: windowWidth, height: windowHeight },
                     minimized: false,
-                    colorClass: 'window-color-2'
+                    colorClass: 'window-color-1',
+                    headerColor: 'header-color-default' // Verde por defecto
                 },
                 {
                     id: Date.now() + 2,
                     type: 'translation',
                     folder: 'Traductor',
-                    position: { x: 420, y: 120 },
-                    size: { width: 350, height: 400 },
+                    position: { x: rightX, y: titleY },
+                    size: { width: windowWidth, height: windowHeight },
                     minimized: false,
-                    colorClass: 'window-color-3'
+                    colorClass: 'window-color-1',
+                    headerColor: 'header-color-default' // Verde por defecto
                 }
             ];
             
@@ -108,16 +120,32 @@ class BookmarkManagerApp {
             const hasSearchWindow = windows.some(w => w.type === 'search');
             const hasTranslationWindow = windows.some(w => w.type === 'translation');
             
+            // Usar las mismas posiciones calculadas
+            const titleWidth = 400;
+            const centerX = window.innerWidth / 2;
+            const windowWidth = 350; // Tamaño original restaurado
+            const windowHeight = 400; // Tamaño original restaurado
+            const titleY = 40;
+            const leftX = centerX - titleWidth/2 - windowWidth - 20;
+            const rightX = centerX + titleWidth/2 + 20;
+            
             if (!hasSearchWindow) {
                 windows.push({
                     id: Date.now() + 999,
                     type: 'search',
                     folder: 'Búsqueda Web',
-                    position: { x: 50, y: 120 },
-                    size: { width: 350, height: 400 },
+                    position: { x: leftX, y: titleY },
+                    size: { width: windowWidth, height: windowHeight },
                     minimized: false,
-                    colorClass: 'window-color-2'
+                    colorClass: 'window-color-1',
+                    headerColor: 'header-color-default'
                 });
+            } else {
+                // Actualizar ventana existente con color verde
+                const searchWindow = windows.find(w => w.type === 'search');
+                if (searchWindow) {
+                    searchWindow.headerColor = 'header-color-default';
+                }
             }
             
             if (!hasTranslationWindow) {
@@ -125,11 +153,18 @@ class BookmarkManagerApp {
                     id: Date.now() + 998,
                     type: 'translation',
                     folder: 'Traductor',
-                    position: { x: 420, y: 120 },
-                    size: { width: 350, height: 400 },
+                    position: { x: rightX, y: titleY },
+                    size: { width: windowWidth, height: windowHeight },
                     minimized: false,
-                    colorClass: 'window-color-3'
+                    colorClass: 'window-color-1',
+                    headerColor: 'header-color-default'
                 });
+            } else {
+                // Actualizar ventana existente con color verde
+                const translationWindow = windows.find(w => w.type === 'translation');
+                if (translationWindow) {
+                    translationWindow.headerColor = 'header-color-default';
+                }
             }
             
             this.stateManager.setState('windows', windows);
@@ -155,27 +190,57 @@ class BookmarkManagerApp {
         if (bookmarkWindows.length === 0) {
             console.log('📁 Creando ventanas para carpetas de marcadores...');
             
-            let posX = 50;
-            let posY = 300;
+            // Usar alineación de grilla en lugar de cascada
+            const windowWidth = 350;
+            const windowHeight = 400;
+            const marginX = 20;
+            const marginY = 20;
+            const startX = 50;
+            const startY = 300;
+            
+            // Calcular cuántas columnas caben
+            const availableWidth = window.innerWidth - (startX * 2);
+            const maxColumns = Math.floor(availableWidth / (windowWidth + marginX));
+            
+            let column = 0;
+            let row = 0;
             
             folders.forEach((folder, index) => {
                 if (folder && folder.trim()) {
-                    const windowId = this.windowManager.createWindow({
+                    // Verificar si hay una posición guardada para esta carpeta
+                    const savedWindows = this.stateManager.getState('windows') || [];
+                    const existingSavedWindow = savedWindows.find(w => w.folder === folder && w.type === 'bookmark');
+                    
+                    // Calcular posición en grilla si no hay posición guardada
+                    let posX, posY;
+                    if (existingSavedWindow && existingSavedWindow.position) {
+                        posX = existingSavedWindow.position.x;
+                        posY = existingSavedWindow.position.y;
+                    } else {
+                        posX = startX + (column * (windowWidth + marginX));
+                        posY = startY + (row * (windowHeight + marginY));
+                        
+                        // Avanzar a siguiente posición
+                        column++;
+                        if (column >= maxColumns) {
+                            column = 0;
+                            row++;
+                        }
+                    }
+                    
+                    const windowConfig = {
                         type: 'bookmark',
                         folder: folder,
                         position: { x: posX, y: posY },
-                        size: { width: 350, height: 400 },
-                        bookmarks: groupedBookmarks[folder]
-                    });
+                        size: existingSavedWindow ? existingSavedWindow.size : { width: windowWidth, height: windowHeight },
+                        bookmarks: groupedBookmarks[folder],
+                        colorClass: existingSavedWindow ? existingSavedWindow.colorClass : undefined,
+                        headerColor: existingSavedWindow ? existingSavedWindow.headerColor : undefined
+                    };
                     
-                    posX += 30;
-                    posY += 30;
+                    const windowId = this.windowManager.createWindow(windowConfig);
                     
-                    // Resetear posición si se sale del viewport
-                    if (posX > window.innerWidth - 400) {
-                        posX = 50;
-                        posY += 100;
-                    }
+                    console.log(`📁 Ventana creada para "${folder}" en posición (${posX}, ${posY})`);
                 }
             });
         } else {
@@ -489,8 +554,14 @@ class BookmarkManagerApp {
                 
                 <div class="settings-section">
                     <h3>🔧 Opciones</h3>
-                    <button id="reset-settings-btn" class="danger-btn">🗑️ Resetear Configuración</button>
-                    <button id="export-settings-btn" class="secondary-btn">📤 Exportar Configuración</button>
+                    <div class="settings-row">
+                        <button id="save-layout-btn" class="primary-btn">💾 Guardar Layout Actual</button>
+                        <button id="auto-align-btn" class="secondary-btn">📐 Alinear Automáticamente</button>
+                    </div>
+                    <div class="settings-row">
+                        <button id="reset-settings-btn" class="danger-btn">🗑️ Resetear Configuración</button>
+                        <button id="export-settings-btn" class="secondary-btn">📤 Exportar Configuración</button>
+                    </div>
                 </div>
                 
                 <div class="settings-section">
@@ -503,6 +574,14 @@ class BookmarkManagerApp {
         // Event listeners del panel
         document.getElementById('close-settings-btn')?.addEventListener('click', () => {
             this.toggleSettings();
+        });
+
+        document.getElementById('save-layout-btn')?.addEventListener('click', () => {
+            this.saveCurrentLayout();
+        });
+
+        document.getElementById('auto-align-btn')?.addEventListener('click', () => {
+            this.autoAlignWindows();
         });
 
         document.getElementById('reset-settings-btn')?.addEventListener('click', () => {
@@ -533,12 +612,81 @@ class BookmarkManagerApp {
      * Mostrar diálogo para añadir ventana
      */
     showAddWindowDialog() {
-        const folders = this.bookmarkManager.getUniqueFolders(this.stateManager.getState('bookmarks'));
+        console.log('➕ === INICIO DIALOG AÑADIR VENTANA ===');
         
-        if (folders.length === 0) {
-            alert('No hay carpetas de marcadores disponibles');
+        // Esperar un tick para asegurar que cualquier operación previa termine
+        setTimeout(() => {
+            this._showAddWindowDialogInternal();
+        }, 50);
+    }
+    
+    _showAddWindowDialogInternal() {
+        // Obtener el estado más fresco posible
+        const currentState = this.stateManager.getState();
+        
+        console.log('🔄 Análisis completo del estado actual:');
+        console.log('  - Total ventanas en estado:', currentState.windows?.length || 0);
+        console.log('  - Total marcadores cargados:', currentState.bookmarks?.length || 0);
+        
+        // Verificar el DOM actual
+        const domWindowElements = document.querySelectorAll('.draggable-window');
+        console.log('🏠 Ventanas físicas en DOM:', domWindowElements.length);
+        
+        // Crear lista de ventanas existentes combinando estado y DOM para máxima precisión
+        const existingWindows = currentState.windows || [];
+        const existingFolders = new Set();
+        
+        // Primero agregar desde el estado
+        existingWindows.forEach(w => {
+            if (w.type === 'bookmark' && w.folder) {
+                existingFolders.add(w.folder);
+                console.log(`📋 Estado: "${w.folder}" (ID: ${w.id}, Type: ${w.type})`);
+            }
+        });
+        
+        // Luego verificar DOM para doble confirmación
+        Array.from(domWindowElements).forEach(el => {
+            const titleElement = el.querySelector('.window-title');
+            const title = titleElement?.textContent?.trim() || '';
+            
+            // Solo considerar ventanas de marcadores (excluir 🔍 y 🌍)
+            if (title && !title.includes('🔍') && !title.includes('🌍') && !title.includes('Búsqueda') && !title.includes('Traductor')) {
+                existingFolders.add(title);
+                console.log(`🏠 DOM: "${title}" (Elemento: ${el.id})`);
+            }
+        });
+        
+        console.log('🎯 Carpetas que YA tienen ventanas:', Array.from(existingFolders));
+        
+        // Obtener todas las carpetas disponibles
+        const allFolders = this.bookmarkManager.getUniqueFolders(currentState.bookmarks || []);
+        console.log('📁 Todas las carpetas de marcadores disponibles:', allFolders);
+        
+        // Filtrar carpetas que NO tienen ventanas
+        const availableFolders = allFolders.filter(folder => {
+            const isAvailable = !existingFolders.has(folder);
+            if (!isAvailable) {
+                console.log(`❌ "${folder}" ya tiene ventana - FILTRADA`);
+            } else {
+                console.log(`✅ "${folder}" disponible para añadir`);
+            }
+            return isAvailable;
+        });
+        
+        console.log('🎯 RESULTADO FINAL - Carpetas disponibles:', availableFolders);
+        
+        if (allFolders.length === 0) {
+            this.showNotification('❌ No hay carpetas de marcadores disponibles', 'error');
             return;
         }
+        
+        if (availableFolders.length === 0) {
+            this.showNotification('⚠️ Todas las carpetas ya tienen ventanas. Elimina una ventana primero para poder añadir otra.', 'error');
+            return;
+        }
+        
+        // Continuar con el resto del diálogo usando availableFolders en lugar de folders
+        const folders = availableFolders;
 
         // Crear modal personalizado
         const modal = document.createElement('div');
@@ -751,17 +899,208 @@ class BookmarkManagerApp {
                 const folder = option.dataset.folder;
                 const groupedBookmarks = this.bookmarkManager.groupBookmarksByFolder(this.stateManager.getState('bookmarks'));
                 
-                this.windowManager.createWindow({
+                console.log('➕ Creando nueva ventana para carpeta:', folder);
+                
+                // Verificar si ya existe una ventana para esta carpeta
+                const existingWindows = this.stateManager.getState('windows');
+                const existingWindow = existingWindows.find(w => w.folder === folder && w.type === 'bookmark');
+                
+                if (existingWindow) {
+                    // Si ya existe, solo mostrar notificación
+                    this.showNotification(`⚠️ Ya existe una ventana para "${folder}"`, 'error');
+                    closeModal();
+                    return;
+                }
+                
+                console.log('🪟 Creando nueva ventana para:', folder);
+                
+                const windowId = this.windowManager.createWindow({
                     type: 'bookmark',
                     folder: folder,
                     position: { x: 100 + Math.random() * 200, y: 100 + Math.random() * 200 },
                     bookmarks: groupedBookmarks[folder] || []
                 });
                 
-                this.windowManager.renderAllWindows();
+                console.log('✅ Nueva ventana creada con ID:', windowId);
+                console.log('📊 Total ventanas después de crear:', this.stateManager.getState('windows').length);
+                
+                // NO llamar renderAllWindows() - la ventana ya se añade automáticamente
+                // En su lugar, solo añadir la nueva ventana al DOM
+                const newWindowData = this.stateManager.getState('windows').find(w => w.id === windowId);
+                if (newWindowData) {
+                    const container = document.querySelector('.windows-container');
+                    if (container) {
+                        const windowElement = this.windowManager.renderBookmarkWindow(newWindowData);
+                        container.appendChild(windowElement);
+                        console.log('🏠 Nueva ventana añadida al DOM');
+                    }
+                }
+                
                 closeModal();
+                this.showNotification(`✅ Ventana "${folder}" añadida correctamente`, 'success');
             });
         });
+    }
+
+    /**
+     * Guardar layout actual
+     */
+    saveCurrentLayout() {
+        console.log('💾 Guardando layout actual...');
+        
+        // Obtener posiciones actuales de todas las ventanas visibles
+        const windowElements = document.querySelectorAll('.draggable-window');
+        const windows = this.stateManager.getState('windows');
+        
+        windowElements.forEach(element => {
+            const windowId = parseInt(element.id.replace('window-', ''));
+            const windowData = windows.find(w => parseInt(w.id) === windowId);
+            
+            if (windowData) {
+                // Actualizar posición y tamaño actuales
+                windowData.position = {
+                    x: parseInt(element.style.left) || windowData.position.x,
+                    y: parseInt(element.style.top) || windowData.position.y
+                };
+                windowData.size = {
+                    width: parseInt(element.style.width) || windowData.size.width,
+                    height: parseInt(element.style.height) || windowData.size.height
+                };
+                
+                console.log(`Guardando ventana ${windowData.folder}: pos(${windowData.position.x}, ${windowData.position.y})`);
+            }
+        });
+        
+        // Guardar inmediatamente
+        this.stateManager.setState('windows', windows);
+        this.stateManager.saveState();
+        
+        // Mostrar confirmación
+        this.showNotification('💾 Layout guardado correctamente', 'success');
+    }
+
+    /**
+     * Alinear ventanas automáticamente
+     */
+    autoAlignWindows() {
+        console.log('📐 Alineando ventanas automáticamente...');
+        
+        const windows = this.stateManager.getState('windows');
+        const windowElements = document.querySelectorAll('.draggable-window');
+        
+        // Configuración de alineación mejorada
+        const startX = 50;
+        const startY = 120;
+        const windowWidth = 350;
+        const windowHeight = 400;
+        const marginX = 20;
+        const marginY = 20;
+        const headerHeight = 60; // Espacio para el header de la app
+        
+        // Calcular cuántas columnas caben
+        const availableWidth = window.innerWidth - (startX * 2);
+        const maxColumns = Math.floor(availableWidth / (windowWidth + marginX));
+        
+        // Calcular cuántas filas caben
+        const availableHeight = window.innerHeight - startY - 100; // 100px para el footer
+        const maxRows = Math.floor(availableHeight / (windowHeight + marginY));
+        
+        console.log(`📐 Configuración: ${maxColumns} columnas x ${maxRows} filas`);
+        
+        let currentX = startX;
+        let currentY = startY;
+        let column = 0;
+        let row = 0;
+        
+        // Ordenar ventanas para tener un orden consistente
+        const sortedElements = Array.from(windowElements).sort((a, b) => {
+            const aId = parseInt(a.id.replace('window-', ''));
+            const bId = parseInt(b.id.replace('window-', ''));
+            return aId - bId;
+        });
+        
+        sortedElements.forEach((element, index) => {
+            const windowId = parseInt(element.id.replace('window-', ''));
+            const windowData = windows.find(w => parseInt(w.id) === windowId);
+            
+            if (windowData) {
+                // Calcular nueva posición
+                const newX = currentX;
+                const newY = currentY;
+                
+                // Aplicar posición
+                element.style.left = `${newX}px`;
+                element.style.top = `${newY}px`;
+                
+                // Asegurar que el tamaño sea estándar
+                element.style.width = `${windowWidth}px`;
+                element.style.height = `${windowHeight}px`;
+                
+                // Actualizar datos
+                windowData.position = { x: newX, y: newY };
+                windowData.size = { width: windowWidth, height: windowHeight };
+                
+                console.log(`📍 Ventana ${windowData.folder}: (${newX}, ${newY}) - Col:${column}, Row:${row}`);
+                
+                // Calcular siguiente posición
+                column++;
+                if (column >= maxColumns) {
+                    column = 0;
+                    row++;
+                    currentX = startX;
+                    currentY = startY + (row * (windowHeight + marginY));
+                    
+                    // Si excedemos las filas disponibles, comenzar nueva "página"
+                    if (row >= maxRows) {
+                        row = 0;
+                        currentY = startY;
+                        currentX = startX + (maxColumns * (windowWidth + marginX));
+                    }
+                } else {
+                    currentX = startX + (column * (windowWidth + marginX));
+                }
+            }
+        });
+        
+        // Guardar nuevas posiciones
+        this.stateManager.setState('windows', windows);
+        this.stateManager.saveState();
+        
+        // Mostrar confirmación
+        this.showNotification(`📐 ${sortedElements.length} ventanas alineadas en grilla ${maxColumns}x${maxRows}`, 'success');
+    }
+
+    /**
+     * Mostrar notificación
+     */
+    showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.textContent = message;
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: ${type === 'success' ? '#4CAF50' : type === 'error' ? '#f44336' : '#2196F3'};
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            z-index: 10000;
+            font-size: 14px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            animation: slideIn 0.3s ease;
+        `;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.style.animation = 'slideOut 0.3s ease';
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 300);
+        }, 3000);
     }
 
     /**

@@ -255,7 +255,29 @@ body {
     -webkit-user-select: none;
     -moz-user-select: none;
     -ms-user-select: none;
+    position: relative;
 }
+
+/* Colores específicos para barras de título por categoría */
+.header-color-development { background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); }
+.header-color-work { background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%); }
+.header-color-social { background: linear-gradient(135deg, #E91E63 0%, #C2185B 100%); }
+.header-color-entertainment { background: linear-gradient(135deg, #9C27B0 0%, #7B1FA2 100%); }
+.header-color-shopping { background: linear-gradient(135deg, #FF5722 0%, #D84315 100%); }
+.header-color-reference { background: linear-gradient(135deg, #607D8B 0%, #455A64 100%); }
+.header-color-news { background: linear-gradient(135deg, #795548 0%, #5D4037 100%); }
+.header-color-tools { background: linear-gradient(135deg, #009688 0%, #00695C 100%); }
+.header-color-design { background: linear-gradient(135deg, #CDDC39 0%, #AFB42B 100%); color: #333; }
+.header-color-education { background: linear-gradient(135deg, #3F51B5 0%, #303F9F 100%); }
+.header-color-default { background: linear-gradient(135deg, #4CAF50 0%, #388E3C 100%); }
+
+/* Colores numerados para compatibilidad */
+.header-color-1 { background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); }
+.header-color-2 { background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%); }
+.header-color-3 { background: linear-gradient(135deg, #E91E63 0%, #C2185B 100%); }
+.header-color-4 { background: linear-gradient(135deg, #9C27B0 0%, #7B1FA2 100%); }
+.header-color-5 { background: linear-gradient(135deg, #FF5722 0%, #D84315 100%); }
+.header-color-6 { background: linear-gradient(135deg, #607D8B 0%, #455A64 100%); }
 
 .window-title {
     font-weight: 500;
@@ -335,6 +357,80 @@ body {
 .window-controls button:hover {
     transform: scale(1.1);
     background: rgba(255, 255, 255, 0.3);
+}
+
+.color-picker-btn {
+    font-size: 12px !important;
+    border-radius: 4px !important;
+}
+
+/* Menú selector de color */
+.color-picker-menu {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    overflow: hidden;
+}
+
+.color-picker-header {
+    background: #f8f9fa;
+    padding: 12px 16px;
+    font-weight: 600;
+    font-size: 14px;
+    color: #333;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.color-options {
+    padding: 8px;
+}
+
+.color-option {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.2s ease;
+    gap: 10px;
+}
+
+.color-option:hover {
+    background: #f5f5f5;
+}
+
+.color-preview {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    border: 1px solid rgba(0,0,0,0.1);
+}
+
+.color-name {
+    font-size: 13px;
+    color: #333;
+    font-weight: 500;
+}
+
+/* Tema oscuro para el selector de color */
+.app.dark .color-picker-menu {
+    background: #2a2a2a;
+    border-color: rgba(255,255,255,0.2);
+}
+
+.app.dark .color-picker-header {
+    background: #333;
+    color: #e0e0e0;
+    border-bottom-color: rgba(255,255,255,0.1);
+}
+
+.app.dark .color-option:hover {
+    background: rgba(255,255,255,0.1);
+}
+
+.app.dark .color-name {
+    color: #e0e0e0;
 }
 
 .minimize-btn:hover {
@@ -1209,6 +1305,12 @@ body {
     margin-bottom: 30px;
 }
 
+.settings-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
 .settings-section h3 {
     margin: 0 0 16px 0;
     font-size: 18px;
@@ -1287,6 +1389,21 @@ body {
     background: #45a049;
 }
 
+.primary-btn {
+    background: #4CAF50;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    margin-right: 10px;
+}
+
+.primary-btn:hover {
+    background: #45a049;
+}
+
 .danger-btn {
     background: #f44336;
     color: white;
@@ -1330,6 +1447,28 @@ body {
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(20px); }
     to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+    from { 
+        opacity: 0; 
+        transform: translateX(100%); 
+    }
+    to { 
+        opacity: 1; 
+        transform: translateX(0); 
+    }
+}
+
+@keyframes slideOut {
+    from { 
+        opacity: 1; 
+        transform: translateX(0); 
+    }
+    to { 
+        opacity: 0; 
+        transform: translateX(100%); 
+    }
 }
 
 .draggable-window {
