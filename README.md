@@ -2,7 +2,7 @@
 
 Una extensión moderna para navegadores Chromium (Brave, Chrome, Edge) que transforma la gestión de marcadores con ventanas flotantes arrastrables y herramientas integradas.
 
-![Versión](https://img.shields.io/badge/version-1.0.1-blue.svg)
+![Versión](https://img.shields.io/badge/version-1.0.2-blue.svg)
 ![Licencia](https://img.shields.io/badge/license-MIT-green.svg)
 ![Navegadores](https://img.shields.io/badge/browsers-Brave%20%7C%20Chrome%20%7C%20Edge-orange.svg)
 
@@ -60,13 +60,13 @@ Una extensión moderna para navegadores Chromium (Brave, Chrome, Edge) que trans
 ## 📦 Descarga
 
 ### **Opción 1: Release (Recomendado)**
-[📥 Descargar bookmark-manager-v1.0.1.zip](../../releases/latest)
+[📥 Descargar bookmark-manager-v1.0.2-by_asturwebs.zip](../../releases/latest)
 
 ### **Opción 2: Desde Código Fuente**
 ```bash
 git clone https://github.com/asturwebs/bookmark-manager-extension.git
 cd bookmark-manager-extension
-# Usar la carpeta 'extension/' para instalar
+# Usar la carpeta 'public/' para instalar
 ```
 
 ## 🎯 Uso
@@ -149,6 +149,27 @@ window.bookmarkManagerApp.clearStorage()   // Limpiar storage
   ]
 }
 ```
+
+## 🆕 Changelog v1.0.2
+
+### 🔴 **Bugs Críticos Arreglados**
+- ✅ **Chrome Storage Fix**: Validación robusta de permisos y disponibilidad de chrome.storage
+- ✅ **Condición de carrera**: Mutex implementado para evitar eliminaciones simultáneas de ventanas
+- ✅ **Validación de bookmarks**: Manejo granular de errores + filtrado de bookmarks inválidos
+- ✅ **Fondo y pie de página**: Corregido layout flexbox para mostrar correctamente el fondo y footer
+- ✅ **Auto-organización**: Ventanas ya no se salen del área visible al auto-organizarse
+
+### 🚀 **Mejoras de Rendimiento**
+- ⚡ **CSS Optimizado**: Eliminados duplicados de scrollbars y animaciones (-20% tamaño)
+- ⚡ **Algoritmos mejorados**: Posicionamiento inteligente que respeta viewport
+- ⚡ **Manejo de errores**: Notificaciones específicas para permisos, timeout y red
+
+### 🛠️ **Mejoras Técnicas**
+- 🔧 **Async/await**: Operaciones de eliminación ahora son asíncronas y seguras
+- 🔧 **Validación URL**: Prevención de javascript: y URLs malformadas
+- 🔧 **Consistencia**: Versiones sincronizadas en todos los archivos
+
+---
 
 ## 🆕 Changelog v1.0.1
 
