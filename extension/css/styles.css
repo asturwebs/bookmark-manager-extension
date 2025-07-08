@@ -1,3 +1,30 @@
+/* Z-Index System - Usar solo estos valores */
+:root {
+    --z-background: 0;
+    --z-content: 100;
+    --z-resize-handle: 200;
+    --z-floating: 300;
+    --z-header: 400;
+    --z-dropdown: 500;
+    --z-modal: 600;
+    --z-notification: 700;
+    --z-tooltip: 800;
+    --z-overlay: 900;
+    
+    /* Responsive Breakpoints */
+    --mobile-max: 768px;
+    --tablet-max: 1024px;
+    --desktop-min: 1025px;
+    
+    /* Responsive Window Sizes */
+    --window-width-mobile: 280px;
+    --window-height-mobile: 320px;
+    --window-width-tablet: 320px;
+    --window-height-tablet: 360px;
+    --window-width-desktop: 350px;
+    --window-height-desktop: 400px;
+}
+
 /* Estilos globales */
 * {
     box-sizing: border-box;
@@ -8,7 +35,11 @@ body {
     padding: 0;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     overflow-x: hidden;
-    overflow-y: auto; /* Permitir scroll vertical */
+    overflow-y: auto; /* Permitir scroll vertical completo */
+    width: 100%;
+    min-height: 100vh;
+    height: auto; /* Permitir que el body crezca */
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); /* Fondo por defecto */
 }
 
 #root {
@@ -23,8 +54,9 @@ body {
     flex: 1; /* Ocupa todo el espacio disponible */
     position: relative;
     margin-top: 15px; 
-    padding-bottom: 20px;
+    padding-bottom: 100px; /* Más espacio para el footer fijo */
     overflow: visible;
+    min-height: calc(100vh - 200px); /* Asegurar altura mínima */
 }
 
 .app {
@@ -35,6 +67,10 @@ body {
     flex-direction: column;
     overflow-y: auto; /* Permitir scroll cuando sea necesario */
     flex: 1; /* Ocupa todo el espacio disponible */
+}
+
+.app.dark body {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%); /* Fondo por defecto modo oscuro */
 }
 
 /* Título de la aplicación */
@@ -117,18 +153,18 @@ body {
 
 /* Pie de página con firma */
 .app-footer {
-    position: relative;
+    position: fixed;
+    bottom: 0;
+    left: 0;
     width: 100%;
     padding: 15px 20px;
-    background: rgba(0, 0, 0, 0.8);
+    background: rgba(0, 0, 0, 0.9);
     color: white;
     text-align: center;
-    z-index: 900;
-    margin-top: auto; /* Empuja el footer hacia abajo */
+    z-index: var(--z-overlay);
     border-top: 1px solid rgba(255, 255, 255, 0.2);
-    clear: both;
-    flex-shrink: 0; /* No se encoge en el layout flex */
-    backdrop-filter: blur(5px);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.3);
 }
 
 .footer-content {
@@ -188,6 +224,7 @@ body {
     background-attachment: fixed;
     position: relative;
     overflow: visible;
+    /* No forzar background aquí para evitar doble fondo */
 }
 
 /* Panel de control */
@@ -197,7 +234,7 @@ body {
     right: 20px;
     display: flex;
     gap: 10px;
-    z-index: 1000;
+    z-index: var(--z-header);
 }
 
 .control-btn {
@@ -216,7 +253,7 @@ body {
     transform: translateY(-2px);
 }
 
-/* Ventanas arrastrables */
+/* Ventanas arrastrables - COMO EN v1.0.1 */
 .draggable-window {
     position: absolute;
     background: rgba(250, 250, 250, 0.98);
@@ -224,12 +261,91 @@ body {
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1), 0 2px 5px rgba(0, 0, 0, 0.05);
     border: 1px solid rgba(0, 0, 0, 0.05);
     overflow: hidden;
-    min-width: 300px;
-    min-height: 150px;
+    /* Ancho estandarizado para todas las ventanas */
+    width: 320px;
+    min-width: 320px;
+    max-width: 320px;
+    /* Altura dinámica basada en contenido */
+    min-height: 120px;
     max-height: 80vh;
-    height: auto !important;
+    height: fit-content;
     transition: box-shadow 0.2s ease, transform 0.2s ease;
-    z-index: 1000;
+    z-index: var(--z-floating);
+}
+
+/* Ventanas de herramientas - Ancho optimizado */
+.draggable-window.default-window {
+    width: 360px !important; /* Más ancho para herramientas */
+    min-width: 360px !important;
+    max-width: 360px !important;
+}
+
+/* Contenido SÚPER compacto */
+.default-window .window-content {
+    padding: 8px 12px; /* Padding aumentado por el ancho extra */
+    overflow: visible; /* Sin scroll */
+    height: auto;
+    min-height: auto;
+    max-height: none; /* Sin límites */
+}
+
+/* ✨ VENTANAS COMPACTAS - Para contenido mínimo */
+.draggable-window.compact-window {
+    min-width: 200px;
+    min-height: 80px;
+    width: fit-content;
+    height: fit-content;
+    max-width: 300px;
+    /* Transición suave al cambiar tamaño */
+    transition: width 0.2s ease, height 0.2s ease, box-shadow 0.2s ease;
+}
+
+.compact-window .window-content {
+    padding: 6px 10px;
+    min-height: auto;
+    height: auto;
+    overflow: visible;
+    /* Sin scroll en ventanas compactas */
+    overflow-y: visible;
+    /* Eliminar espacio extra */
+    margin: 0;
+}
+
+/* Ajustar bookmarks en ventanas compactas */
+.compact-window .bookmark-item {
+    padding: 3px 6px;
+    margin: 1px 0;
+    font-size: 12px;
+    line-height: 1.2;
+}
+
+.compact-window .window-header {
+    padding: 6px 10px;
+    font-size: 12px;
+    min-height: 32px;
+}
+
+/* Container de búsqueda más compacto */
+.compact-window .bookmark-search-container {
+    margin-bottom: 4px;
+    margin-top: 0;
+}
+
+.compact-window .bookmark-search-input {
+    padding: 3px 6px;
+    font-size: 11px;
+    height: 24px;
+}
+
+/* Bookmarks container sin padding extra */
+.compact-window .bookmarks-container {
+    padding: 0;
+    margin: 0;
+}
+
+/* Mejorar todas las transiciones de ventanas */
+.draggable-window {
+    transition: width 0.2s ease, height 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 /* Estilos para el handle de redimensionamiento */
@@ -241,7 +357,7 @@ body {
     right: 0;
     background: rgba(0, 0, 0, 0.3); /* Color para depuración, se puede hacer transparente */
     cursor: se-resize;
-    z-index: 100;
+    z-index: var(--z-resize-handle);
 }
 
 .window-header {
@@ -337,7 +453,7 @@ body {
 
 /* Ocultar controles en ventanas por defecto - se aplica específicamente en renderSearchWindow y renderTranslationWindow */
 .default-window .window-controls {
-    display: none !important;
+    display: none;
 }
 
 /* Estilos para botones de control de ventana */
@@ -363,9 +479,9 @@ body {
     background: rgba(255, 255, 255, 0.3);
 }
 
-.color-picker-btn {
-    font-size: 12px !important;
-    border-radius: 4px !important;
+.window-controls .color-picker-btn {
+    font-size: 12px;
+    border-radius: 4px;
 }
 
 /* Menú selector de color */
@@ -437,34 +553,66 @@ body {
     color: #e0e0e0;
 }
 
-.minimize-btn:hover {
-    background: rgba(255, 193, 7, 0.8) !important;
-    color: #000 !important;
+.window-controls .minimize-btn:hover {
+    background: rgba(255, 193, 7, 0.8);
+    color: #000;
 }
 
-.close-btn:hover {
-    background: rgba(244, 67, 54, 0.8) !important;
-    color: #fff !important;
+.window-controls .close-btn:hover {
+    background: rgba(244, 67, 54, 0.8);
+    color: #fff;
 }
 
 .window-content {
     padding: 15px;
-    overflow-y: auto;
-    max-height: 400px;
     background-color: #ffffff;
     border-radius: 0 0 8px 8px;
+    /* Comportamiento por defecto - sin restricciones */
+    height: auto;
+    min-height: fit-content;
+    flex-shrink: 0;
 }
 
-/* Estilos unificados para campos de entrada y búsqueda */
+/* Ventanas normales (no compactas, no default) - SCROLL FORZADO */
+.draggable-window:not(.compact-window):not(.default-window) .window-content {
+    overflow-y: auto !important;
+    max-height: 250px !important; /* Altura máxima antes de scroll - FORZADA */
+    scrollbar-width: thin; /* Firefox */
+    scrollbar-color: #ccc #f5f5f5; /* Firefox */
+    /* Asegurar que el contenido pueda hacer scroll */
+    height: auto !important;
+    min-height: auto !important;
+}
+
+/* Estilo de scrollbar para Webkit (Chrome, Safari, Edge) */
+.draggable-window:not(.compact-window):not(.default-window) .window-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.draggable-window:not(.compact-window):not(.default-window) .window-content::-webkit-scrollbar-track {
+    background: #f5f5f5;
+    border-radius: 4px;
+}
+
+.draggable-window:not(.compact-window):not(.default-window) .window-content::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 4px;
+}
+
+.draggable-window:not(.compact-window):not(.default-window) .window-content::-webkit-scrollbar-thumb:hover {
+    background: #999;
+}
+
+/* Estilos unificados para campos de entrada y búsqueda - COMPACTOS */
 .unified-input-style {
     width: 100%;
-    padding: 10px 12px;
+    padding: 6px 8px; /* Padding reducido */
     border: 1px solid #ddd;
-    border-radius: 6px;
-    font-size: 14px;
+    border-radius: 4px;
+    font-size: 13px; /* Fuente más pequeña */
     background-color: #f9f9f9;
     transition: all 0.2s ease;
-    margin-bottom: 10px;
+    margin-bottom: 6px; /* Margen reducido */
 }
 
 .unified-input-style:focus {
@@ -473,15 +621,16 @@ body {
     box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
 }
 
-/* Estilo unificado para botones */
+/* Estilo unificado para botones - COMPACTOS */
 .unified-button-style {
-    padding: 10px 15px;
+    padding: 6px 10px; /* Padding reducido */
     background: #4CAF50;
     color: white;
     border: none;
-    border-radius: 6px;
+    border-radius: 4px;
     cursor: pointer;
     font-weight: 500;
+    font-size: 13px; /* Fuente más pequeña */
     transition: background 0.2s ease;
     text-align: center;
 }
@@ -514,10 +663,10 @@ body {
     background: #2a5a2c;
 }
 
-/* Estilo para contenedores de búsqueda y traducción */
+/* Estilo para contenedores de búsqueda y traducción - COMPACTOS */
 .search-container,
 .translation-container {
-    margin-bottom: 15px;
+    margin-bottom: 8px; /* Margen reducido */
     display: flex;
     flex-direction: row;
     gap: 0;
@@ -547,16 +696,18 @@ body {
 }
 
 .bookmarks-container {
-    height: 100%;
+    height: auto; /* Altura automática */
+    overflow: visible; /* Sin scroll */
+    max-height: none; /* Sin límites */
 }
 
 .search-container input,
 .translation-container input {
     flex: 1;
-    padding: 10px 12px;
+    padding: 5px 8px; /* Padding reducido */
     border: 1px solid #ddd;
-    border-radius: 10px 0 0 10px;
-    font-size: 14px;
+    border-radius: 6px 0 0 6px;
+    font-size: 13px; /* Fuente más pequeña */
     margin: 0;
     background-color: #f5f5f5;
     transition: all 0.2s ease;
@@ -596,9 +747,9 @@ body {
 .translation-engine-options {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
-    margin-bottom: 15px;
-    padding: 8px 0;
+    gap: 6px; /* Gap reducido */
+    margin-bottom: 8px; /* Margen reducido */
+    padding: 4px 0; /* Padding reducido */
 }
 
 .search-engine-options label,
@@ -700,13 +851,14 @@ body {
 }
 
 .search-button {
-    padding: 10px 15px;
+    padding: 5px 10px; /* Padding reducido */
     background: #4CAF50;
     color: white;
     border: none;
-    border-radius: 0 10px 10px 0;
+    border-radius: 0 6px 6px 0;
     cursor: pointer;
     font-weight: 600;
+    font-size: 13px; /* Fuente más pequeña */
     transition: all 0.3s ease;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
@@ -720,13 +872,14 @@ body {
 
 /* Botón de traducción - mismo estilo que search button */
 .translate-button {
-    padding: 10px 15px;
+    padding: 5px 10px; /* Padding reducido */
     background: #4CAF50;
     color: white;
     border: none;
-    border-radius: 0 10px 10px 0;
+    border-radius: 0 6px 6px 0;
     cursor: pointer;
     font-weight: 600;
+    font-size: 13px; /* Fuente más pequeña */
     transition: all 0.3s ease;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
@@ -834,7 +987,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 10000;
+    z-index: var(--z-modal);
     backdrop-filter: blur(5px);
 }
 
@@ -1135,8 +1288,8 @@ body {
 }
 
 /* Settings panel hidden state */
-.settings-hidden {
-    display: none !important;
+.settings-panel.settings-hidden {
+    display: none;
 }
 
 /* Estilos para selector de imagen */
@@ -1576,4 +1729,193 @@ textarea:focus {
     outline: none;
     border-color: #4CAF50;
     box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+}
+
+/* ===== RESPONSIVE DESIGN ===== */
+
+/* 📱 Mobile (hasta 768px) */
+@media screen and (max-width: 768px) {
+    .draggable-window {
+        min-width: 220px; /* Más compacto en móvil */
+        min-height: 100px;
+        max-width: 95vw;
+        max-height: 85vh;
+        width: fit-content;
+        height: fit-content;
+    }
+    
+    .app-title h1 {
+        font-size: 24px;
+    }
+    
+    .header-controls {
+        gap: 10px;
+        margin: 5px 0 15px;
+    }
+    
+    .header-button {
+        width: 36px;
+        height: 36px;
+        font-size: 14px;
+    }
+    
+    .settings-content {
+        min-width: 300px;
+        max-width: 95vw;
+        padding: 20px;
+    }
+    
+    .control-panel {
+        top: 10px;
+        right: 10px;
+        gap: 5px;
+    }
+    
+    .window-content {
+        padding: 10px;
+        max-height: 300px;
+    }
+    
+    .color-picker-menu {
+        max-width: 90vw;
+    }
+}
+
+/* 📱 Tablet (769px - 1024px) */
+@media screen and (min-width: 769px) and (max-width: 1024px) {
+    .draggable-window {
+        min-width: 240px; /* Dinámico para tablet */
+        min-height: 110px;
+        max-width: 90vw;
+        max-height: 80vh;
+        width: fit-content;
+        height: fit-content;
+    }
+    
+    .app-title h1 {
+        font-size: 26px;
+    }
+    
+    .header-controls {
+        gap: 12px;
+    }
+    
+    .header-button {
+        width: 38px;
+        height: 38px;
+        font-size: 15px;
+    }
+    
+    .settings-content {
+        min-width: 350px;
+        max-width: 90vw;
+    }
+    
+    .window-content {
+        padding: 12px;
+        max-height: 350px;
+    }
+}
+
+/* 🖥️ Desktop (1025px+) */
+@media screen and (min-width: 1025px) {
+    .draggable-window {
+        min-width: 250px; /* Tamaño mínimo más pequeño */
+        min-height: 120px;
+        max-width: 400px;
+        max-height: 500px;
+        width: fit-content;
+        height: fit-content;
+    }
+    
+    .app-title h1 {
+        font-size: 28px;
+    }
+    
+    .settings-content {
+        min-width: 400px;
+        max-width: 600px;
+    }
+    
+    .window-content {
+        max-height: 400px;
+    }
+}
+
+/* 🌐 Ultra Wide (1440px+) */
+@media screen and (min-width: 1440px) {
+    .draggable-window {
+        min-width: 260px; /* Ultra wide más flexible */
+        min-height: 130px;
+        max-width: 450px;
+        max-height: 550px;
+        width: fit-content;
+        height: fit-content;
+    }
+    
+    .app-title h1 {
+        font-size: 32px;
+    }
+    
+    .settings-content {
+        min-width: 450px;
+        max-width: 700px;
+    }
+    
+    .window-content {
+        max-height: 450px;
+    }
+}
+
+/* 📏 Height-specific adjustments */
+@media screen and (max-height: 600px) {
+    .draggable-window {
+        max-height: 70vh;
+    }
+    
+    .window-content {
+        max-height: 250px;
+    }
+    
+    .app-title {
+        padding: 15px 0 5px;
+    }
+    
+    .header-controls {
+        margin: 5px 0 15px;
+    }
+}
+
+/* 🎯 High DPI displays */
+@media screen and (min-resolution: 2dppx) {
+    .draggable-window {
+        border-width: 0.5px;
+    }
+    
+    .window-header {
+        border-bottom-width: 0.5px;
+    }
+    
+    .app-footer {
+        border-top-width: 0.5px;
+    }
+}
+
+/* ⚡ Reduced motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+    .draggable-window {
+        animation: none;
+    }
+    
+    .header-button,
+    .window-controls button,
+    .bookmark-item {
+        transition: none;
+    }
+    
+    .search-button:hover,
+    .translate-button:hover,
+    .header-button:hover {
+        transform: none;
+    }
 }

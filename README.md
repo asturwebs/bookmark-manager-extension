@@ -2,7 +2,7 @@
 
 Una extensión moderna para navegadores Chromium (Brave, Chrome, Edge) que transforma la gestión de marcadores con ventanas flotantes arrastrables y herramientas integradas.
 
-![Versión](https://img.shields.io/badge/version-1.0.2-blue.svg)
+![Versión](https://img.shields.io/badge/version-1.0.3-blue.svg)
 ![Licencia](https://img.shields.io/badge/license-MIT-green.svg)
 ![Navegadores](https://img.shields.io/badge/browsers-Brave%20%7C%20Chrome%20%7C%20Edge-orange.svg)
 
@@ -60,7 +60,7 @@ Una extensión moderna para navegadores Chromium (Brave, Chrome, Edge) que trans
 ## 📦 Descarga
 
 ### **Opción 1: Release (Recomendado)**
-[📥 Descargar bookmark-manager-v1.0.2-by_asturwebs.zip](../../releases/latest)
+[📥 Descargar bookmark-manager-v1.0.3-by_asturwebs.zip](../../releases/latest)
 
 ### **Opción 2: Desde Código Fuente**
 ```bash
@@ -122,9 +122,18 @@ ThemeManager (Styling) ←→ CSS Classes
 ### **Debug Console**
 ```javascript
 // Consola del navegador (F12)
-window.bookmarkManagerApp.getDebugInfo()   // Estado + métricas
+window.bookmarkManagerApp.getDebugInfo()   // Estado + métricas + logger info
 window.bookmarkManagerApp.restart()        // Reiniciar app
 window.bookmarkManagerApp.clearStorage()   // Limpiar storage
+
+// Sistema de Logging Configurable (v1.0.3+)
+window.bookmarkManagerApp.setLogLevel('DEBUG')  // ERROR/WARN/INFO/DEBUG/TRACE
+window.bookmarkManagerApp.getLogConfig()        // Ver configuración actual
+window.bookmarkManagerApp.exportLogs(100)       // Exportar últimos 100 logs
+
+// Tests Unitarios (v1.0.3+)
+window.bookmarkManagerApp.runTests()       // Ejecutar tests de funciones críticas
+window.bookmarkManagerApp.clearTests()     // Limpiar resultados de tests
 ```
 
 ### **Performance Metrics**
@@ -150,7 +159,31 @@ window.bookmarkManagerApp.clearStorage()   // Limpiar storage
 }
 ```
 
-## 🆕 Changelog v1.0.2
+## 🆕 Changelog v1.0.3
+
+### 🔴 **Arreglado - Finalmente!**
+- ✅ **Scroll Definitivo**: Ventanas con muchos enlaces muestran scroll correctamente (CSS `!important` + altura fija)
+- ✅ **Anchos Optimizados**: Herramientas 360px vs Bookmarks 320px para mejor usabilidad
+- ✅ **Alineación Perfecta**: Ventanas búsqueda/traductor alineadas con parte superior del título
+
+### ✨ **Sistema de Ventanas Perfeccionado**
+- 📏 **Anchos Diferenciados**: 360px herramientas, 320px bookmarks (uniformidad + funcionalidad)
+- 📏 **Scroll Forzado**: Altura fija cuando contenido >250px + CSS `!important` inviolable
+- 📏 **Posicionamiento Inteligente**: Auto-organización sin superposiciones + detección de límites
+
+### 🚀 **Mejoras de UX**
+- ⚡ **Tamaños Dinámicos**: Ventanas compactas (≤3 items) vs normales (scroll automático)
+- ⚡ **Logs Detallados**: Consola muestra cálculos exactos + activación de scroll
+- ⚡ **Grilla Inteligente**: Algoritmo mejorado con verificación de viewport
+
+---
+
+---
+
+## 🆕 Changelog Anterior
+
+### v1.0.3 - Sistema Logging + Tests + Z-Index
+### v1.0.2 - Bugs Críticos Chrome Storage
 
 ### 🔴 **Bugs Críticos Arreglados**
 - ✅ **Chrome Storage Fix**: Validación robusta de permisos y disponibilidad de chrome.storage

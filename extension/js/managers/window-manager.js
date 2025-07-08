@@ -6,6 +6,7 @@ class WindowManager {
         this.eventListeners = new Map();
         this.abortController = new AbortController();
         this.isRemoving = false; // Mutex para evitar condiciones de carrera
+        this.colorCache = new Map(); // Cache para detección de colores
         
         // Colores para ventanas (compatibilidad)
         this.windowColors = [
@@ -222,27 +223,41 @@ class WindowManager {
     }
 
     /**
-     * Detectar color automático basado en el nombre de la carpeta
+     * Detectar color automático basado en el nombre de la carpeta (con cache)
      */
     getColorForFolder(folderName) {
         if (!folderName) return 'header-color-default';
         
+        // Verificar cache primero
+        if (this.colorCache.has(folderName)) {
+            return this.colorCache.get(folderName);
+        }
+        
         const normalizedName = folderName.toLowerCase().trim();
+        let detectedColor;
         
         // Buscar coincidencia exacta primero
         if (this.categoryColors[normalizedName]) {
-            return this.categoryColors[normalizedName];
-        }
-        
-        // Buscar coincidencias parciales
-        for (const [keyword, color] of Object.entries(this.categoryColors)) {
-            if (normalizedName.includes(keyword) || keyword.includes(normalizedName)) {
-                return color;
+            detectedColor = this.categoryColors[normalizedName];
+        } else {
+            // Buscar coincidencias parciales
+            detectedColor = null;
+            for (const [keyword, color] of Object.entries(this.categoryColors)) {
+                if (normalizedName.includes(keyword) || keyword.includes(normalizedName)) {
+                    detectedColor = color;
+                    break;
+                }
+            }
+            
+            // Si no hay coincidencia, usar color por hash del nombre
+            if (!detectedColor) {
+                detectedColor = this.getHashBasedColor(normalizedName);
             }
         }
         
-        // Si no hay coincidencia, usar color por hash del nombre
-        return this.getHashBasedColor(normalizedName);
+        // Guardar en cache y retornar
+        this.colorCache.set(folderName, detectedColor);
+        return detectedColor;
     }
     
     /**
@@ -398,6 +413,10 @@ class WindowManager {
         `;
 
         this.setupWindowEventListeners(div, windowData);
+        
+        // Ajustar tamaño dinámicamente después de crear
+        this.adjustWindowSizeToContent(div);
+        
         return div;
     }
 
@@ -452,6 +471,10 @@ class WindowManager {
 
         this.setupWebSearchListeners(div, windowData);
         this.setupWindowEventListeners(div, windowData);
+        
+        // Ajustar tamaño dinámicamente después de crear
+        this.adjustWindowSizeToContent(div);
+        
         return div;
     }
 
@@ -505,6 +528,10 @@ class WindowManager {
 
         this.setupTranslationListeners(div, windowData);
         this.setupWindowEventListeners(div, windowData);
+        
+        // Ajustar tamaño dinámicamente después de crear
+        this.adjustWindowSizeToContent(div);
+        
         return div;
     }
 
@@ -629,6 +656,8 @@ class WindowManager {
                 const container = windowElement.querySelector('.bookmarks-container');
                 if (container) {
                     container.innerHTML = this.bookmarkManager.renderBookmarksList(filtered);
+                    // Reajustar tamaño cuando cambia el contenido filtrado
+                    this.adjustWindowSizeToContent(windowElement);
                 }
             });
         }
@@ -804,12 +833,10 @@ class WindowManager {
             const newX = currentLeft + deltaX;
             const newY = currentTop + deltaY;
             
-            // Limitar a los bordes de la pantalla (opcional)
-            const maxX = window.innerWidth - windowElement.offsetWidth;
-            const maxY = window.innerHeight - windowElement.offsetHeight;
-            
-            const constrainedX = Math.max(0, Math.min(newX, maxX));
-            const constrainedY = Math.max(0, Math.min(newY, maxY));
+            // NO limitar área - permitir arrastrar libremente por toda la página
+            // Solo evitar valores negativos extremos
+            const constrainedX = Math.max(-50, newX); // Permite salir un poco hacia la izquierda
+            const constrainedY = Math.max(0, newY); // No permite subir arriba del todo
             
             // Aplicar directamente
             windowElement.style.left = `${constrainedX}px`;
@@ -829,6 +856,11 @@ class WindowManager {
             
             // Guardar estado final
             this.stateManager.saveState();
+            
+            // Ajustar altura del body para permitir scroll
+            if (window.bookmarkManagerApp && window.bookmarkManagerApp.adjustBodyHeight) {
+                setTimeout(() => window.bookmarkManagerApp.adjustBodyHeight(), 50);
+            }
             
             console.log('🏁 Drag finalizado. Posición final:', windowData.position);
         };
@@ -1071,12 +1103,100 @@ class WindowManager {
     }
 
     /**
+     * Ajustar tamaño de ventana dinámicamente al contenido
+     */
+    adjustWindowSizeToContent(windowElement) {
+        // Dar tiempo para que el contenido se renderice
+        setTimeout(() => {
+            try {
+                const content = windowElement.querySelector('.window-content');
+                const header = windowElement.querySelector('.window-header');
+                
+                if (!content || !header) return;
+                
+                // Detectar cantidad de contenido para aplicar modo compacto
+                const bookmarkItems = content.querySelectorAll('.bookmark-item');
+                const isLowContent = bookmarkItems.length <= 3;
+                
+                // Calcular altura necesaria del contenido
+                const contentHeight = content.scrollHeight;
+                const headerHeight = header.offsetHeight;
+                const padding = isLowContent ? 15 : 20;
+                
+                // Aplicar clase compacta si hay poco contenido
+                if (isLowContent && !windowElement.classList.contains('default-window')) {
+                    windowElement.classList.add('compact-window');
+                    console.log('🔧 Ventana con poco contenido - aplicando modo compacto');
+                } else {
+                    windowElement.classList.remove('compact-window');
+                }
+                
+                // ANCHOS OPTIMIZADOS POR TIPO DE VENTANA
+                let targetWidth, targetHeight;
+                
+                if (windowElement.classList.contains('default-window')) {
+                    // Ventanas de herramientas - más anchas para mejor usabilidad
+                    targetWidth = 360;
+                    targetHeight = Math.min(headerHeight + contentHeight + 10, 180);
+                } else if (windowElement.classList.contains('compact-window')) {
+                    // Ventanas de bookmarks con poco contenido - ancho estándar
+                    targetWidth = 320;
+                    const searchContainer = content.querySelector('.bookmark-search-container');
+                    const bookmarkContainer = content.querySelector('.bookmarks-container');
+                    const searchHeight = searchContainer ? searchContainer.offsetHeight : 0;
+                    const bookmarksHeight = bookmarkContainer ? bookmarkContainer.scrollHeight : 0;
+                    
+                    targetHeight = headerHeight + searchHeight + bookmarksHeight + (padding / 2);
+                    targetHeight = Math.max(100, Math.min(targetHeight, 250));
+                } else {
+                    // Ventanas de bookmarks normales - ancho estándar + SCROLL FORZADO
+                    targetWidth = 320;
+                    const maxContentHeight = 250; // Altura máxima del contenido
+                    const maxWindowHeight = headerHeight + maxContentHeight + padding; // Altura máxima de ventana
+                    
+                    // SIEMPRE limitar altura de ventana para forzar scroll cuando sea necesario
+                    if (contentHeight > maxContentHeight) {
+                        // Contenido excede límite - fijar altura de ventana para activar scroll
+                        targetHeight = maxWindowHeight;
+                        console.log(`📏 SCROLL FORZADO: Contenido ${contentHeight}px > ${maxContentHeight}px - ventana fija en ${targetHeight}px`);
+                    } else {
+                        // Contenido cabe - ajustar al contenido real
+                        targetHeight = headerHeight + contentHeight + padding;
+                        console.log(`📏 Sin scroll: Contenido ${contentHeight}px cabe en ventana ${targetHeight}px`);
+                    }
+                    
+                    // Asegurar límites mínimos y máximos
+                    targetHeight = Math.max(200, Math.min(targetHeight, maxWindowHeight));
+                }
+                
+                // Aplicar tamaños
+                windowElement.style.width = `${targetWidth}px`;
+                windowElement.style.height = `${targetHeight}px`;
+                
+                console.log(`📏 Ventana ajustada dinámicamente: ${targetWidth}x${targetHeight}px (contenido: ${contentHeight}px, items: ${bookmarkItems.length}, compacta: ${isLowContent})`);
+                
+            } catch (error) {
+                console.error('Error ajustando tamaño:', error);
+            }
+        }, 150); // Dar más tiempo para renderizado completo
+    }
+
+    /**
+     * Limpiar cache de colores
+     */
+    clearColorCache() {
+        this.colorCache.clear();
+        console.log('🗑️ Cache de colores limpiado');
+    }
+
+    /**
      * Limpiar event listeners
      */
     cleanup() {
         this.abortController.abort();
         this.abortController = new AbortController();
         this.eventListeners.clear();
+        this.clearColorCache();
     }
 }
 

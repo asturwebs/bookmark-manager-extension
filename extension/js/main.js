@@ -26,12 +26,12 @@ class BookmarkManagerApp {
      */
     async init() {
         if (this.isInitializing) {
-            console.warn('Init ya en progreso, abortando duplicado');
+            logWarn('MainApp', 'Init ya en progreso, abortando duplicado');
             return;
         }
 
         this.isInitializing = true;
-        console.log('🚀 Iniciando Bookmark Manager App...');
+        logInfo('MainApp', '🚀 Iniciando Bookmark Manager App...');
 
         try {
             // 1. Limpiar estado previo si existe
@@ -59,10 +59,10 @@ class BookmarkManagerApp {
             this.setupApplicationEventListeners();
 
             this.initialized = true;
-            console.log('✅ Aplicación inicializada correctamente');
+            logInfo('MainApp', '✅ Aplicación inicializada correctamente');
 
         } catch (error) {
-            console.error('❌ Error inicializando aplicación:', error);
+            logError('MainApp', '❌ Error inicializando aplicación:', error);
         } finally {
             this.isInitializing = false;
         }
@@ -78,17 +78,17 @@ class BookmarkManagerApp {
         let windows = this.stateManager.getState('windows');
         
         if (!windows || windows.length === 0) {
-            console.log('📦 Creando ventanas por defecto...');
+            logInfo('MainApp', '📦 Creando ventanas por defecto...');
             
-            // Calcular posiciones junto al título
-            const titleWidth = 400; // Ancho aproximado del título "Gestor de Marcadores"
+            // Calcular posiciones alineadas con la parte SUPERIOR del título
+            const titleWidth = 500; // Ancho aproximado del título + controles
             const centerX = window.innerWidth / 2;
-            const windowWidth = 350; // Tamaño original restaurado
-            const windowHeight = 400; // Tamaño original restaurado
-            const titleY = 40; // Altura más arriba para estar realmente junto al título
+            const windowWidth = 280; // Tamaño para cálculos (CSS controla el real)
+            const windowHeight = 120; // Más pequeño para herramientas
+            const titleY = 25; // Alineado con parte superior del título (evita panel control)
             
-            const leftX = centerX - titleWidth/2 - windowWidth - 20; // Izquierda del título
-            const rightX = centerX + titleWidth/2 + 20; // Derecha del título
+            const leftX = Math.max(20, centerX - titleWidth/2 - windowWidth - 30); // Izquierda del título
+            const rightX = Math.min(window.innerWidth - windowWidth - 20, centerX + titleWidth/2 + 30); // Derecha del título
             
             const defaultWindows = [
                 {
@@ -121,11 +121,11 @@ class BookmarkManagerApp {
             const hasTranslationWindow = windows.some(w => w.type === 'translation');
             
             // Usar las mismas posiciones calculadas
-            const titleWidth = 400;
+            const titleWidth = 500;
             const centerX = window.innerWidth / 2;
-            const windowWidth = 350; // Tamaño original restaurado
-            const windowHeight = 400; // Tamaño original restaurado
-            const titleY = 40;
+            const windowWidth = 280; // Tamaño para cálculos (CSS controla el real)
+            const windowHeight = 150; // Solo para cálculos (CSS auto-ajusta)
+            const titleY = 80;
             const leftX = centerX - titleWidth/2 - windowWidth - 20;
             const rightX = centerX + titleWidth/2 + 20;
             
@@ -190,18 +190,20 @@ class BookmarkManagerApp {
         if (bookmarkWindows.length === 0) {
             console.log('📁 Creando ventanas para carpetas de marcadores...');
             
-            // Usar alineación de grilla en lugar de cascada
-            const windowWidth = 350;
-            const windowHeight = 400;
-            const marginX = 20;
-            const marginY = 20;
-            const startX = 50;
-            const startY = 200; // Más espacio para el header
-            const footerHeight = 80; // Espacio para el footer
+            // Sistema de grilla mejorado con tamaños dinámicos
+            const baseWindowWidth = 300; // Tamaño base para cálculos
+            const baseWindowHeight = 250; // Altura base estimada
+            const marginX = 30;
+            const marginY = 25;
+            const startX = 60;
+            const startY = 180; // Debajo de herramientas
+            const footerHeight = 100;
             
-            // Calcular cuántas columnas caben sin salirse del área visible
-            const availableWidth = window.innerWidth - (startX * 2);
-            const maxColumns = Math.max(1, Math.floor(availableWidth / (windowWidth + marginX)));
+            // Calcular grilla dinámica
+            const availableWidth = window.innerWidth - (startX * 2) - 100; // Margen extra
+            const availableHeight = window.innerHeight - startY - footerHeight;
+            const maxColumns = Math.max(1, Math.floor(availableWidth / (baseWindowWidth + marginX)));
+            const maxRows = Math.max(1, Math.floor(availableHeight / (baseWindowHeight + marginY)));
             
             let column = 0;
             let row = 0;
@@ -218,15 +220,23 @@ class BookmarkManagerApp {
                         posX = existingSavedWindow.position.x;
                         posY = existingSavedWindow.position.y;
                     } else {
-                        posX = startX + (column * (windowWidth + marginX));
-                        posY = startY + (row * (windowHeight + marginY));
+                        posX = startX + (column * (baseWindowWidth + marginX));
+                        posY = startY + (row * (baseWindowHeight + marginY));
                         
-                        // Asegurar que la ventana no se salga del área visible
-                        const maxX = window.innerWidth - windowWidth - 20;
-                        const maxY = window.innerHeight - windowHeight - footerHeight;
+                        // Verificar límites y evitar superposiciones
+                        const maxX = window.innerWidth - baseWindowWidth - 40;
+                        const maxY = window.innerHeight - baseWindowHeight - footerHeight;
                         
-                        posX = Math.max(20, Math.min(posX, maxX));
+                        posX = Math.max(30, Math.min(posX, maxX));
                         posY = Math.max(startY, Math.min(posY, maxY));
+                        
+                        // Si no cabe en la fila actual, nueva fila
+                        if (posX >= maxX && column > 0) {
+                            column = 0;
+                            row++;
+                            posX = startX;
+                            posY = startY + (row * (baseWindowHeight + marginY));
+                        }
                         
                         // Avanzar a siguiente posición
                         column++;
@@ -240,7 +250,7 @@ class BookmarkManagerApp {
                         type: 'bookmark',
                         folder: folder,
                         position: { x: posX, y: posY },
-                        size: existingSavedWindow ? existingSavedWindow.size : { width: windowWidth, height: windowHeight },
+                        size: existingSavedWindow ? existingSavedWindow.size : { width: baseWindowWidth, height: baseWindowHeight },
                         bookmarks: groupedBookmarks[folder],
                         colorClass: existingSavedWindow ? existingSavedWindow.colorClass : undefined,
                         headerColor: existingSavedWindow ? existingSavedWindow.headerColor : undefined
@@ -269,7 +279,7 @@ class BookmarkManagerApp {
     render() {
         const root = document.getElementById('root');
         if (!root) {
-            console.error('❌ Elemento root no encontrado');
+            logError('MainApp', '❌ Elemento root no encontrado');
             return;
         }
 
@@ -327,6 +337,9 @@ class BookmarkManagerApp {
 
         // Renderizar ventanas
         this.windowManager.renderAllWindows();
+        
+        // Ajustar altura después de renderizar
+        setTimeout(() => this.adjustBodyHeight(), 100);
         
         console.log('🎨 Interfaz renderizada');
     }
@@ -994,22 +1007,24 @@ class BookmarkManagerApp {
         console.log('📐 Alineando ventanas automáticamente...');
         
         const windows = this.stateManager.getState('windows');
-        const windowElements = document.querySelectorAll('.draggable-window');
         
-        // Configuración de alineación mejorada
-        const startX = 50;
-        const startY = 200; // Más espacio para el header
-        const windowWidth = 350;
-        const windowHeight = 400;
-        const marginX = 20;
-        const marginY = 20;
-        const footerHeight = 80; // Espacio para el footer
+        // Solo alinear ventanas de marcadores (no las fijas de búsqueda/traducción)
+        const bookmarkElements = document.querySelectorAll('.draggable-window:not(.default-window)');
+        
+        // Configuración de alineación mejorada - EVITAR SUPERPOSICIONES
+        const startX = 30;
+        const startY = 300; // Espacio para las ventanas fijas arriba
+        const windowWidth = 300; // Ancho para cálculos (pero CSS controla el real)
+        const windowHeight = 350; // Altura estimada GENEROSA para evitar superposiciones
+        const marginX = 25; // Margen más grande para evitar superposiciones
+        const marginY = 30; // Margen más grande para evitar superposiciones
+        const footerHeight = 120; // Espacio para el footer
         
         // Calcular cuántas columnas caben sin salirse del área visible
         const availableWidth = window.innerWidth - (startX * 2);
         const maxColumns = Math.max(1, Math.floor(availableWidth / (windowWidth + marginX)));
         
-        // Calcular cuántas filas caben sin salirse del área visible
+        // Calcular cuántas filas caben sin salirse del área visible  
         const availableHeight = window.innerHeight - startY - footerHeight;
         const maxRows = Math.max(1, Math.floor(availableHeight / (windowHeight + marginY)));
         
@@ -1020,8 +1035,8 @@ class BookmarkManagerApp {
         let column = 0;
         let row = 0;
         
-        // Ordenar ventanas para tener un orden consistente
-        const sortedElements = Array.from(windowElements).sort((a, b) => {
+        // Ordenar solo ventanas de marcadores para tener un orden consistente
+        const sortedElements = Array.from(bookmarkElements).sort((a, b) => {
             const aId = parseInt(a.id.replace('window-', ''));
             const bId = parseInt(b.id.replace('window-', ''));
             return aId - bId;
@@ -1032,49 +1047,33 @@ class BookmarkManagerApp {
             const windowData = windows.find(w => parseInt(w.id) === windowId);
             
             if (windowData) {
-                // Calcular nueva posición
-                let newX = currentX;
-                let newY = currentY;
+                // Calcular posición en grilla
+                const newX = startX + (column * (windowWidth + marginX));
+                const newY = startY + (row * (windowHeight + marginY));
                 
                 // Asegurar que la ventana no se salga del área visible
                 const maxX = window.innerWidth - windowWidth - 20;
                 const maxY = window.innerHeight - windowHeight - footerHeight;
                 
-                newX = Math.max(20, Math.min(newX, maxX));
-                newY = Math.max(startY, Math.min(newY, maxY));
+                const finalX = Math.max(20, Math.min(newX, maxX));
+                const finalY = Math.max(startY, Math.min(newY, maxY));
                 
                 // Aplicar posición
-                element.style.left = `${newX}px`;
-                element.style.top = `${newY}px`;
+                element.style.left = `${finalX}px`;
+                element.style.top = `${finalY}px`;
                 
-                // Asegurar que el tamaño sea estándar
-                element.style.width = `${windowWidth}px`;
-                element.style.height = `${windowHeight}px`;
+                // NO asignar tamaño fijo - dejar que CSS y contenido controlen
                 
-                // Actualizar datos
-                windowData.position = { x: newX, y: newY };
-                windowData.size = { width: windowWidth, height: windowHeight };
+                // Actualizar datos (solo posición)
+                windowData.position = { x: finalX, y: finalY };
                 
-                console.log(`📍 Ventana ${windowData.folder}: (${newX}, ${newY}) - Col:${column}, Row:${row}`);
+                console.log(`📍 Ventana ${windowData.folder}: (${finalX}, ${finalY}) - Col:${column}, Row:${row}`);
                 
-                // Calcular siguiente posición
+                // Avanzar a siguiente posición
                 column++;
                 if (column >= maxColumns) {
                     column = 0;
                     row++;
-                    currentX = startX;
-                    currentY = startY + (row * (windowHeight + marginY));
-                    
-                    // Si excedemos las filas disponibles, crear scroll o nueva columna
-                    if (row >= maxRows) {
-                        // Reiniciar desde la primera fila pero desplazado hacia la derecha
-                        row = 0;
-                        currentY = startY;
-                        startX = Math.min(startX + (maxColumns * (windowWidth + marginX)), window.innerWidth - windowWidth - 20);
-                        currentX = startX;
-                    }
-                } else {
-                    currentX = startX + (column * (windowWidth + marginX));
                 }
             }
         });
@@ -1083,8 +1082,49 @@ class BookmarkManagerApp {
         this.stateManager.setState('windows', windows);
         this.stateManager.saveState();
         
+        // Ajustar altura del body para permitir scroll completo
+        this.adjustBodyHeight();
+        
         // Mostrar confirmación
         this.showNotification(`📐 ${sortedElements.length} ventanas alineadas en grilla ${maxColumns}x${maxRows}`, 'success');
+    }
+
+    /**
+     * Ajustar altura del body para permitir scroll completo
+     */
+    adjustBodyHeight() {
+        const allWindows = document.querySelectorAll('.draggable-window');
+        let maxBottom = window.innerHeight;
+        
+        allWindows.forEach(windowEl => {
+            // Obtener posición real desde style
+            const top = parseInt(windowEl.style.top) || 0;
+            const height = windowEl.offsetHeight || 200;
+            const windowBottom = top + height;
+            maxBottom = Math.max(maxBottom, windowBottom);
+        });
+        
+        // Añadir margen extra para el footer y scroll cómodo
+        const targetHeight = Math.max(window.innerHeight, maxBottom + 200);
+        
+        // Aplicar altura al body y contenedores
+        const body = document.body;
+        const app = document.querySelector('.app');
+        const backgroundContainer = document.querySelector('.background-container');
+        
+        if (body) {
+            body.style.height = `${targetHeight}px`;
+        }
+        if (app) {
+            app.style.minHeight = `${targetHeight}px`;
+            app.style.height = `${targetHeight}px`;
+        }
+        if (backgroundContainer) {
+            backgroundContainer.style.minHeight = `${targetHeight}px`;
+            backgroundContainer.style.height = `${targetHeight}px`;
+        }
+        
+        console.log(`📏 Altura ajustada: ${targetHeight}px (máxima ventana: ${maxBottom}px)`);
     }
 
     /**
@@ -1184,7 +1224,8 @@ class BookmarkManagerApp {
                 performance: {
                     memory: this.getMemoryUsage(),
                     timing: Math.round(performance.now())
-                }
+                },
+                logger: window.logger ? getLogConfig() : 'Logger no disponible'
             };
         } catch (error) {
             return {
@@ -1247,6 +1288,17 @@ class BookmarkManagerApp {
             localStorage.clear();
             console.log('✅ LocalStorage limpiado');
         };
+
+        // Logger configuration methods
+        window.bookmarkManagerApp.setLogLevel = (level) => setLogLevel(level);
+        window.bookmarkManagerApp.getLogConfig = () => getLogConfig();
+        window.bookmarkManagerApp.exportLogs = (limit) => exportLogs(limit);
+        window.bookmarkManagerApp.enableModuleLogs = (modules) => enableModuleLogs(modules);
+        window.bookmarkManagerApp.disableModuleLogs = (modules) => disableModuleLogs(modules);
+        
+        // Test runner methods
+        window.bookmarkManagerApp.runTests = () => window.runTests ? runTests() : 'Test runner no disponible';
+        window.bookmarkManagerApp.clearTests = () => window.clearTests ? clearTests() : 'Test runner no disponible';
         
         console.log('🔧 API de debugging disponible en window.bookmarkManagerApp');
         console.log('💡 Comandos disponibles:');
@@ -1255,6 +1307,11 @@ class BookmarkManagerApp {
         console.log('  - window.bookmarkManagerApp.getDebugInfo()');
         console.log('  - window.bookmarkManagerApp.restart()');
         console.log('  - window.bookmarkManagerApp.clearStorage() [Para limpiar storage]');
+        console.log('  - window.bookmarkManagerApp.setLogLevel("DEBUG"|"INFO"|"WARN"|"ERROR")');
+        console.log('  - window.bookmarkManagerApp.getLogConfig()');
+        console.log('  - window.bookmarkManagerApp.exportLogs(100)');
+        console.log('  - window.bookmarkManagerApp.runTests() [Ejecutar tests unitarios]');
+        console.log('  - window.bookmarkManagerApp.clearTests() [Limpiar resultados de tests]');
     }
 }
 

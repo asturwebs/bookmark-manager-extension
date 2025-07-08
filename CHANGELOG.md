@@ -5,6 +5,36 @@ Todos los cambios notables en este proyecto están documentados aquí.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 y este proyecto sigue [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2025-01-08
+
+### 🔴 Arreglado - Problemas de Tamaño y Scroll
+- **Scroll Definitivo**: Ventanas con muchos enlaces muestran scroll correctamente (CSS `!important` + altura fija)
+- **Anchos Optimizados**: Herramientas 360px vs Bookmarks 320px para mejor usabilidad  
+- **Alineación Perfecta**: Ventanas búsqueda/traductor alineadas con parte superior del título
+- **Superposición Eliminada**: Algoritmo de auto-organización mejorado sin solapamientos
+- **Espacio en Blanco**: Reducción drástica de padding en ventanas compactas
+
+### ✨ Agregado - Sistema de Ventanas Perfeccionado
+- **Anchos Diferenciados**: 360px herramientas, 320px bookmarks (uniformidad + funcionalidad)
+- **Scroll Forzado**: Altura fija cuando contenido >250px + CSS `!important` inviolable
+- **Modo Compacto Automático**: Clase `.compact-window` para ventanas con ≤3 elementos
+- **Grilla Dinámica**: Sistema inteligente que calcula columnas/filas según viewport
+- **Scrollbar Personalizada**: Estilos Webkit + Firefox para consistencia visual
+
+### 🚀 Mejorado - UX y Performance  
+- **Tamaños Dinámicos**: Ventanas compactas vs normales con scroll automático
+- **Logs Detallados**: Consola muestra cálculos exactos + activación de scroll
+- **Posicionamiento Inteligente**: Auto-organización con detección de límites
+- **Transiciones Suaves**: Animaciones 0.2s ease para cambios de tamaño
+- **Responsividad Mejorada**: Breakpoints optimizados para todos los dispositivos
+
+### 🛠️ Técnico - Arquitectura Robusta
+- **CSS Selectores Específicos**: `.draggable-window:not(.compact-window):not(.default-window)`
+- **JS Coordinado**: targetWidth por tipo + maxWindowHeight cálculo fijo
+- **Cross-browser Scrollbars**: Webkit + Firefox fallbacks
+- **Sistema Z-Index Coherente**: Variables CSS organizadas (background: 0 → overlay: 900)
+- **Cache de Detección de Colores**: Memoización para optimizar rendering
+
 ## [1.0.2] - 2025-01-08
 
 ### 🔴 Arreglado
@@ -74,6 +104,7 @@ y este proyecto sigue [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - **🔒 Seguridad** para vulnerabilidades arregladas
 - **💥 Roto** para cambios que rompen compatibilidad
 
+[1.0.3]: https://github.com/asturwebs/bookmark-manager-extension/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/asturwebs/bookmark-manager-extension/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/asturwebs/bookmark-manager-extension/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/asturwebs/bookmark-manager-extension/releases/tag/v1.0.0
