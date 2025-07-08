@@ -196,11 +196,12 @@ class BookmarkManagerApp {
             const marginX = 20;
             const marginY = 20;
             const startX = 50;
-            const startY = 300;
+            const startY = 200; // Más espacio para el header
+            const footerHeight = 80; // Espacio para el footer
             
-            // Calcular cuántas columnas caben
+            // Calcular cuántas columnas caben sin salirse del área visible
             const availableWidth = window.innerWidth - (startX * 2);
-            const maxColumns = Math.floor(availableWidth / (windowWidth + marginX));
+            const maxColumns = Math.max(1, Math.floor(availableWidth / (windowWidth + marginX)));
             
             let column = 0;
             let row = 0;
@@ -219,6 +220,13 @@ class BookmarkManagerApp {
                     } else {
                         posX = startX + (column * (windowWidth + marginX));
                         posY = startY + (row * (windowHeight + marginY));
+                        
+                        // Asegurar que la ventana no se salga del área visible
+                        const maxX = window.innerWidth - windowWidth - 20;
+                        const maxY = window.innerHeight - windowHeight - footerHeight;
+                        
+                        posX = Math.max(20, Math.min(posX, maxX));
+                        posY = Math.max(startY, Math.min(posY, maxY));
                         
                         // Avanzar a siguiente posición
                         column++;
@@ -990,22 +998,22 @@ class BookmarkManagerApp {
         
         // Configuración de alineación mejorada
         const startX = 50;
-        const startY = 120;
+        const startY = 200; // Más espacio para el header
         const windowWidth = 350;
         const windowHeight = 400;
         const marginX = 20;
         const marginY = 20;
-        const headerHeight = 60; // Espacio para el header de la app
+        const footerHeight = 80; // Espacio para el footer
         
-        // Calcular cuántas columnas caben
+        // Calcular cuántas columnas caben sin salirse del área visible
         const availableWidth = window.innerWidth - (startX * 2);
-        const maxColumns = Math.floor(availableWidth / (windowWidth + marginX));
+        const maxColumns = Math.max(1, Math.floor(availableWidth / (windowWidth + marginX)));
         
-        // Calcular cuántas filas caben
-        const availableHeight = window.innerHeight - startY - 100; // 100px para el footer
-        const maxRows = Math.floor(availableHeight / (windowHeight + marginY));
+        // Calcular cuántas filas caben sin salirse del área visible
+        const availableHeight = window.innerHeight - startY - footerHeight;
+        const maxRows = Math.max(1, Math.floor(availableHeight / (windowHeight + marginY)));
         
-        console.log(`📐 Configuración: ${maxColumns} columnas x ${maxRows} filas`);
+        console.log(`📐 Configuración: ${maxColumns} columnas x ${maxRows} filas (Viewport: ${window.innerWidth}x${window.innerHeight})`);
         
         let currentX = startX;
         let currentY = startY;
@@ -1025,8 +1033,15 @@ class BookmarkManagerApp {
             
             if (windowData) {
                 // Calcular nueva posición
-                const newX = currentX;
-                const newY = currentY;
+                let newX = currentX;
+                let newY = currentY;
+                
+                // Asegurar que la ventana no se salga del área visible
+                const maxX = window.innerWidth - windowWidth - 20;
+                const maxY = window.innerHeight - windowHeight - footerHeight;
+                
+                newX = Math.max(20, Math.min(newX, maxX));
+                newY = Math.max(startY, Math.min(newY, maxY));
                 
                 // Aplicar posición
                 element.style.left = `${newX}px`;
@@ -1050,11 +1065,13 @@ class BookmarkManagerApp {
                     currentX = startX;
                     currentY = startY + (row * (windowHeight + marginY));
                     
-                    // Si excedemos las filas disponibles, comenzar nueva "página"
+                    // Si excedemos las filas disponibles, crear scroll o nueva columna
                     if (row >= maxRows) {
+                        // Reiniciar desde la primera fila pero desplazado hacia la derecha
                         row = 0;
                         currentY = startY;
-                        currentX = startX + (maxColumns * (windowWidth + marginX));
+                        startX = Math.min(startX + (maxColumns * (windowWidth + marginX)), window.innerWidth - windowWidth - 20);
+                        currentX = startX;
                     }
                 } else {
                     currentX = startX + (column * (windowWidth + marginX));

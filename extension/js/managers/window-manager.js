@@ -5,6 +5,7 @@ class WindowManager {
         this.bookmarkManager = bookmarkManager;
         this.eventListeners = new Map();
         this.abortController = new AbortController();
+        this.isRemoving = false; // Mutex para evitar condiciones de carrera
         
         // Colores para ventanas (compatibilidad)
         this.windowColors = [
@@ -150,52 +151,74 @@ class WindowManager {
     }
 
     /**
-     * Eliminar ventana
+     * Eliminar ventana (con mutex para evitar condiciones de carrera)
      */
-    removeWindow(windowId) {
-        console.log('🗑️ Iniciando eliminación de ventana:', windowId);
+    async removeWindow(windowId) {
+        // Evitar múltiples operaciones simultáneas
+        if (this.isRemoving) {
+            console.warn('⚠️ Operación de eliminación ya en progreso, ignorando');
+            return;
+        }
         
-        const windows = this.stateManager.getState('windows');
-        const targetId = parseInt(windowId); // Asegurar que sea número
+        this.isRemoving = true;
         
-        console.log('📊 Estado antes de eliminar:');
-        console.log('  - Total ventanas:', windows.length);
-        console.log('  - Ventanas:', windows.map(w => ({id: w.id, folder: w.folder, type: w.type})));
-        console.log('  - ID objetivo:', targetId, typeof targetId);
-        
-        const filteredWindows = windows.filter(w => {
-            const windowIdNum = parseInt(w.id);
-            const shouldKeep = windowIdNum !== targetId;
+        try {
+            console.log('🗑️ Iniciando eliminación de ventana:', windowId);
             
-            if (!shouldKeep) {
-                console.log('✂️ Eliminando ventana:', {
-                    id: w.id,
-                    folder: w.folder,
-                    type: w.type
-                });
+            const windows = this.stateManager.getState('windows');
+            const targetId = parseInt(windowId); // Asegurar que sea número
+            
+            console.log('📊 Estado antes de eliminar:');
+            console.log('  - Total ventanas:', windows.length);
+            console.log('  - Ventanas:', windows.map(w => ({id: w.id, folder: w.folder, type: w.type})));
+            console.log('  - ID objetivo:', targetId, typeof targetId);
+            
+            // Verificar que la ventana existe antes de proceder
+            const windowToRemove = windows.find(w => parseInt(w.id) === targetId);
+            if (!windowToRemove) {
+                console.warn('⚠️ Ventana no encontrada:', targetId);
+                return;
             }
             
-            return shouldKeep;
-        });
-        
-        console.log('📊 Estado después de filtrar:');
-        console.log('  - Total ventanas:', filteredWindows.length, '(antes:', windows.length + ')');
-        console.log('  - Ventanas restantes:', filteredWindows.map(w => ({id: w.id, folder: w.folder})));
-        
-        // Actualizar estado y forzar guardado inmediato
-        this.stateManager.setState('windows', filteredWindows);
-        this.stateManager.saveState(); // Forzar guardado inmediato
-        
-        console.log('✅ Ventana eliminada del estado');
-        
-        // Emitir evento personalizado para notificar a otros componentes
-        window.dispatchEvent(new CustomEvent('windowRemoved', {
-            detail: { 
-                removedWindowId: targetId,
-                remainingWindows: filteredWindows.length,
-                removedFolder: windows.find(w => parseInt(w.id) === targetId)?.folder
-            }
-        }));
+            const filteredWindows = windows.filter(w => {
+                const windowIdNum = parseInt(w.id);
+                const shouldKeep = windowIdNum !== targetId;
+                
+                if (!shouldKeep) {
+                    console.log('✂️ Eliminando ventana:', {
+                        id: w.id,
+                        folder: w.folder,
+                        type: w.type
+                    });
+                }
+                
+                return shouldKeep;
+            });
+            
+            console.log('📊 Estado después de filtrar:');
+            console.log('  - Total ventanas:', filteredWindows.length, '(antes:', windows.length + ')');
+            console.log('  - Ventanas restantes:', filteredWindows.map(w => ({id: w.id, folder: w.folder})));
+            
+            // Actualizar estado y forzar guardado inmediato
+            this.stateManager.setState('windows', filteredWindows);
+            await this.stateManager.saveState(); // Forzar guardado inmediato
+            
+            console.log('✅ Ventana eliminada del estado');
+            
+            // Emitir evento personalizado para notificar a otros componentes
+            window.dispatchEvent(new CustomEvent('windowRemoved', {
+                detail: { 
+                    removedWindowId: targetId,
+                    remainingWindows: filteredWindows.length,
+                    removedFolder: windowToRemove.folder
+                }
+            }));
+            
+        } catch (error) {
+            console.error('❌ Error eliminando ventana:', error);
+        } finally {
+            this.isRemoving = false;
+        }
     }
 
     /**

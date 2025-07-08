@@ -13,7 +13,9 @@ body {
 
 #root {
     width: 100%;
-    height: 100vh;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
 }
 
 .windows-container {
@@ -32,6 +34,7 @@ body {
     display: flex;
     flex-direction: column;
     overflow-y: auto; /* Permitir scroll cuando sea necesario */
+    flex: 1; /* Ocupa todo el espacio disponible */
 }
 
 /* Título de la aplicación */
@@ -116,15 +119,16 @@ body {
 .app-footer {
     position: relative;
     width: 100%;
-    padding: 10px 20px;
-    background: rgba(0, 0, 0, 0.7);
+    padding: 15px 20px;
+    background: rgba(0, 0, 0, 0.8);
     color: white;
     text-align: center;
     z-index: 900;
     margin-top: auto; /* Empuja el footer hacia abajo */
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
     clear: both;
     flex-shrink: 0; /* No se encoge en el layout flex */
+    backdrop-filter: blur(5px);
 }
 
 .footer-content {
@@ -1243,23 +1247,7 @@ body {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
-/* Scrollbars en modo oscuro */
-.app.dark ::-webkit-scrollbar {
-    width: 8px;
-}
-
-.app.dark ::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.05);
-}
-
-.app.dark ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 4px;
-}
-
-.app.dark ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.3);
-}
+/* Scrollbars en modo oscuro - moved to consolidated section */
 
 /* Note: Removed duplicate settings panel styles that were conflicting with the main ones above */
 
@@ -1445,7 +1433,7 @@ body {
 
 /* Animaciones */
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(20px); }
+    from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
 
@@ -1471,31 +1459,36 @@ body {
     }
 }
 
-.draggable-window {
-    animation: fadeIn 0.3s ease;
-}
-
-/* Scrollbar personalizado */
+/* Scrollbar personalizado consolidado */
 ::-webkit-scrollbar {
     width: 8px;
+    height: 8px;
 }
 
 ::-webkit-scrollbar-track {
     background: rgba(0, 0, 0, 0.05);
-    border-radius: 10px;
+    border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
     background: rgba(0, 0, 0, 0.2);
-    border-radius: 10px;
+    border-radius: 4px;
 }
 
-.dark ::-webkit-scrollbar-track {
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.app.dark ::-webkit-scrollbar-track {
     background: rgba(255, 255, 255, 0.05);
 }
 
-.dark ::-webkit-scrollbar-thumb {
+.app.dark ::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.2);
+}
+
+.app.dark ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
 }
 
 textarea {
@@ -1512,24 +1505,7 @@ textarea {
     min-height: 80px;
 }
 
-/* Optimización básica de barras de desplazamiento */
-::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-}
-
-::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.05);
-}
-
-::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.3);
-}
+/* Optimización básica de barras de desplazamiento - moved to consolidated section */
 
 /* Mejoras para elementos de marcadores */
 .bookmark-item {
@@ -1559,15 +1535,7 @@ textarea {
     color: #4CAF50;
 }
 
-/* Animaciones suaves para elementos interactivos */
-.draggable-window {
-    animation: fadeIn 0.3s ease-out forwards;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-}
+/* Animaciones suaves para elementos interactivos - moved to consolidated section */
 
 /* Mejoras en la tipografía */
 h1, h2, h3, h4, h5, h6 {

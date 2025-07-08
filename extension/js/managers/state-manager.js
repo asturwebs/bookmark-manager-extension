@@ -127,12 +127,26 @@ class StateManager {
         }
 
         // Si no hay config en localStorage, intentar chrome.storage
-        if (Object.keys(config).length === 0 && typeof chrome !== 'undefined' && chrome.storage) {
+        if (Object.keys(config).length === 0 && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
             try {
-                const items = await new Promise(resolve => chrome.storage.sync.get(null, resolve));
-                if (items && items.bookmarkManager_fullConfig) {
-                    config = JSON.parse(items.bookmarkManager_fullConfig);
-                    console.log('Configuración cargada desde chrome.storage:', config);
+                // Verificar permisos y disponibilidad de chrome.storage
+                const isStorageAvailable = await new Promise(resolve => {
+                    chrome.storage.sync.get(null, (items) => {
+                        if (chrome.runtime.lastError) {
+                            console.warn('Chrome storage no disponible:', chrome.runtime.lastError);
+                            resolve(false);
+                        } else {
+                            resolve(true);
+                        }
+                    });
+                });
+
+                if (isStorageAvailable) {
+                    const items = await new Promise(resolve => chrome.storage.sync.get(null, resolve));
+                    if (items && items.bookmarkManager_fullConfig) {
+                        config = JSON.parse(items.bookmarkManager_fullConfig);
+                        console.log('Configuración cargada desde chrome.storage:', config);
+                    }
                 }
             } catch (e) {
                 console.error('Error cargando desde chrome.storage:', e);
@@ -189,23 +203,27 @@ class StateManager {
             // NO incluir bookmarks array
         }));
         
-        // Guardar solo configuración esencial en chrome.storage
-        if (typeof chrome !== 'undefined' && chrome.storage) {
-            chrome.storage.sync.set({
-                theme: this.state.theme,
-                backgroundImage: lightBackgroundImage,
-                defaultSearchEngine: this.state.defaultSearchEngine,
-                defaultTranslationEngine: this.state.defaultTranslationEngine,
-                windowsCount: this.state.windows.length,
-                lastSaved: new Date().toISOString()
-                // Nota: windows y bookmarks van solo a localStorage
-            }, () => {
-                if (chrome.runtime.lastError) {
-                    console.warn('Error guardando en chrome.storage:', chrome.runtime.lastError.message || chrome.runtime.lastError);
-                } else {
-                    console.log('Estado esencial guardado en chrome.storage');
-                }
-            });
+        // Guardar solo configuración esencial en chrome.storage (solo si está disponible)
+        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
+            try {
+                chrome.storage.sync.set({
+                    theme: this.state.theme,
+                    backgroundImage: lightBackgroundImage,
+                    defaultSearchEngine: this.state.defaultSearchEngine,
+                    defaultTranslationEngine: this.state.defaultTranslationEngine,
+                    windowsCount: this.state.windows.length,
+                    lastSaved: new Date().toISOString()
+                    // Nota: windows y bookmarks van solo a localStorage
+                }, () => {
+                    if (chrome.runtime.lastError) {
+                        console.warn('Error guardando en chrome.storage:', chrome.runtime.lastError.message || chrome.runtime.lastError);
+                    } else {
+                        console.log('Estado esencial guardado en chrome.storage');
+                    }
+                });
+            } catch (e) {
+                console.error('Error accediendo a chrome.storage:', e);
+            }
         }
         
         // Guardar en localStorage como respaldo (incluyendo configuración completa)

@@ -32,6 +32,21 @@ class BookmarkManager {
                 
             } catch (error) {
                 console.error('Error cargando marcadores:', error);
+                
+                // Manejo granular de errores
+                if (error.message && error.message.includes('permission')) {
+                    console.error('❌ Error de permisos: La extensión no tiene permisos para acceder a marcadores');
+                    this.showPermissionError();
+                } else if (error.message && error.message.includes('timeout')) {
+                    console.error('❌ Error de timeout: La API de marcadores no responde');
+                    this.showTimeoutError();
+                } else if (error.message && error.message.includes('network')) {
+                    console.error('❌ Error de red: No se puede conectar con la API de marcadores');
+                    this.showNetworkError();
+                } else {
+                    console.error('❌ Error desconocido cargando marcadores:', error);
+                }
+                
                 return this.getDefaultBookmarks();
             }
         } else {
@@ -43,6 +58,79 @@ class BookmarkManager {
     }
 
     /**
+     * Mostrar error de permisos específico
+     */
+    showPermissionError() {
+        this.showNotification('❌ Error de permisos: Verifica que la extensión tenga acceso a marcadores', 'error');
+    }
+
+    /**
+     * Mostrar error de timeout específico
+     */
+    showTimeoutError() {
+        this.showNotification('⏱️ Timeout: La API de marcadores no responde. Intenta recargar la página.', 'error');
+    }
+
+    /**
+     * Mostrar error de red específico
+     */
+    showNetworkError() {
+        this.showNotification('🌐 Error de red: No se puede conectar con la API de marcadores', 'error');
+    }
+
+    /**
+     * Mostrar notificación (método auxiliar)
+     */
+    showNotification(message, type = 'info') {
+        // Crear notificación simple si no existe sistema principal
+        if (typeof window.bookmarkManagerApp !== 'undefined' && window.bookmarkManagerApp.showNotification) {
+            window.bookmarkManagerApp.showNotification(message, type);
+        } else {
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+    }
+
+    /**
+     * Validar bookmark individual
+     */
+    validateBookmark(bookmark) {
+        // Verificar que tenga propiedades básicas
+        if (!bookmark || typeof bookmark !== 'object') {
+            return false;
+        }
+
+        // Verificar URL válida
+        if (!bookmark.url || typeof bookmark.url !== 'string') {
+            return false;
+        }
+
+        // Verificar que la URL sea válida
+        try {
+            new URL(bookmark.url);
+        } catch (e) {
+            console.warn('❌ URL inválida:', bookmark.url);
+            return false;
+        }
+
+        // Verificar que no sea una URL vacía o javascript:
+        if (bookmark.url.startsWith('javascript:') || bookmark.url.trim() === '') {
+            return false;
+        }
+
+        // Verificar que tenga un título (puede ser vacío, pero debe existir)
+        if (bookmark.title === undefined || bookmark.title === null) {
+            return false;
+        }
+
+        // Verificar que tenga un ID válido
+        if (!bookmark.id || (typeof bookmark.id !== 'string' && typeof bookmark.id !== 'number')) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * Aplanar el árbol de marcadores de Chrome
      */
     flattenBookmarks(bookmarkNodes) {
@@ -51,12 +139,17 @@ class BookmarkManager {
         const traverse = (nodes, folderName = '') => {
             nodes.forEach(node => {
                 if (node.url) {
-                    result.push({
-                        id: node.id,
-                        title: node.title,
-                        url: node.url,
-                        folder: folderName || 'Favoritos'
-                    });
+                    // Validar bookmark individual antes de agregarlo
+                    if (this.validateBookmark(node)) {
+                        result.push({
+                            id: node.id,
+                            title: node.title || 'Sin título',
+                            url: node.url,
+                            folder: folderName || 'Favoritos'
+                        });
+                    } else {
+                        console.warn('❌ Bookmark inválido ignorado:', node);
+                    }
                 } else if (node.children) {
                     traverse(node.children, node.title || folderName);
                 }
